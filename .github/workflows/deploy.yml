@@ -79,16 +79,22 @@ jobs:
         echo "Installing Python dependencies..."
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && python3 -m pip install --user -r requirements.txt"
         
-        # Start Flask app
-        echo "Starting Flask application..."
-        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && nohup python3 app.py > flask_app.log 2>&1 &"
+        # Create startup script and start Flask app
+        echo "Creating startup script..."
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo '#!/bin/bash
+cd /home/ec2-user/abhishek-thesis
+python3 app.py > flask_app.log 2>&1' > start_app.sh && chmod +x start_app.sh"
         
-        # Wait and check
+        echo "Starting Flask application..."
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && nohup ./start_app.sh &"
+        
+        # Give it a moment to start
         echo "Waiting for app to start..."
         sleep 10
         
-        # Check if it's running
-        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && ps aux | grep python"
+        # Check if it's running (separate connection)
+        echo "Checking if Flask app started..."
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && ps aux | grep 'python.*app.py' | grep -v grep || echo 'App not found in processes'"
         
         # Test the app
         ssh $SSH_OPTS ec2-user@$HOST "curl -s http://localhost:5000 && echo 'App is responding!'"
