@@ -16,6 +16,7 @@ import logging
 import boto3
 from botocore.exceptions import NoCredentialsError, ClientError
 import os
+import math
 
 app = Flask(__name__)
 
@@ -161,76 +162,193 @@ def generate_random_ip():
     """Generate a random IP address for simulation"""
     return f"{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}"
 
-def generate_realistic_packet_data():
-    """Generate realistic packet data for automatic scanning simulation"""
-    # Use actual data from the dataset to create realistic packets
-    if dataset_loaded and df is not None and len(df) > 0:
-        # Select a random row from the dataset
-        sample_row = df.sample(n=1).iloc[0]
-        
-        # Create packet data using the sample but with some variations
-        packet_data = []
-        
-        # Add the existing features from dataset (first 72 features)
-        for feature in FEATURE_COLUMNS[:-5]:  # All except the last 5 engineered features
-            if feature in sample_row:
-                base_value = sample_row[feature]
-                # Add some random variation (±10%) to make it realistic
-                variation = random.uniform(0.9, 1.1)
-                packet_data.append(float(base_value * variation))
-            else:
-                # Fallback to random values
-                packet_data.append(random.uniform(0, 100))
-        
-        # Now add the 5 engineered features that the model expects
-        # Total_Packets = Total Fwd Packets + Total Backward Packets
-        total_fwd = packet_data[2] if len(packet_data) > 2 else 0
-        total_bwd = packet_data[3] if len(packet_data) > 3 else 0
-        total_packets = total_fwd + total_bwd
-        packet_data.append(total_packets)
-        
-        # Total_Length = Fwd Packets Length Total + Bwd Packets Length Total
-        fwd_length = packet_data[4] if len(packet_data) > 4 else 0
-        bwd_length = packet_data[5] if len(packet_data) > 5 else 0
-        total_length = fwd_length + bwd_length
-        packet_data.append(total_length)
-        
-        # Packets_per_Second = Flow Packets/s (already exists in the data)
-        packets_per_second = packet_data[15] if len(packet_data) > 15 else 0
-        packet_data.append(packets_per_second)
-        
-        # Avg_Packet_Size = Avg Packet Size (already exists, just duplicate with underscore name)
-        avg_packet_size = packet_data[52] if len(packet_data) > 52 else 0
-        packet_data.append(avg_packet_size)
-        
-        # Fwd_Bwd_Ratio = Total Fwd Packets / Total Backward Packets (avoid division by zero)
-        fwd_bwd_ratio = total_fwd / max(total_bwd, 1) if total_bwd > 0 else total_fwd
-        packet_data.append(fwd_bwd_ratio)
-        
-        return packet_data
+def generate_dynamic_packet_data():
+    """Generate truly dynamic packet data simulating real internet traffic"""
+    current_time = datetime.now()
+    hour = current_time.hour
+    minute = current_time.minute
+    second = current_time.second
+    
+    # Create time-based patterns for realistic traffic simulation
+    # Peak hours (9-11 AM, 2-4 PM, 7-9 PM) have more traffic
+    peak_hours = [9, 10, 11, 14, 15, 16, 19, 20, 21]
+    is_peak_hour = hour in peak_hours
+    
+    # Base traffic multiplier based on time
+    time_multiplier = 1.5 if is_peak_hour else 1.0
+    
+    # Random attack probability - higher during peak hours
+    attack_probability = 0.15 if is_peak_hour else 0.08
+    is_simulated_attack = random.random() < attack_probability
+    
+    # Generate different types of traffic patterns
+    traffic_types = ['web_browsing', 'video_streaming', 'file_download', 'voip', 'gaming', 'malicious']
+    if is_simulated_attack:
+        traffic_type = 'malicious'
+        attack_types = ['ddos', 'portscan', 'bruteforce', 'infiltration', 'botnet', 'web_attack']
+        specific_attack = random.choice(attack_types)
     else:
-        # Fallback to completely random data when dataset is not available
-        packet_data = [random.uniform(0, 100) for _ in range(len(FEATURE_COLUMNS))]
-        return packet_data
-        return packet_data
+        traffic_type = random.choice(traffic_types[:-1])  # Exclude malicious
+        specific_attack = None
+    
+    # Create dynamic packet features based on traffic type and current time
+    packet_data = []
+    
+    # Protocol (TCP=6, UDP=17, ICMP=1)
+    if traffic_type == 'web_browsing':
+        protocol = 6  # TCP
+    elif traffic_type == 'video_streaming':
+        protocol = 17  # UDP
+    elif traffic_type == 'malicious':
+        protocol = random.choice([6, 17, 1])  # Mixed protocols for attacks
+    else:
+        protocol = random.choice([6, 17])
+    packet_data.append(float(protocol))
+    
+    # Flow Duration - dynamic based on traffic type and time
+    if traffic_type == 'web_browsing':
+        flow_duration = random.uniform(100, 5000) * time_multiplier
+    elif traffic_type == 'video_streaming':
+        flow_duration = random.uniform(5000, 50000) * time_multiplier
+    elif traffic_type == 'malicious':
+        if specific_attack == 'ddos':
+            flow_duration = random.uniform(1, 100)  # Very short for DDoS
+        elif specific_attack == 'portscan':
+            flow_duration = random.uniform(1, 50)   # Quick scans
+        else:
+            flow_duration = random.uniform(100, 2000)
+    else:
+        flow_duration = random.uniform(500, 10000) * time_multiplier
+    packet_data.append(flow_duration)
+    
+    # Packet counts - time and type dependent
+    if traffic_type == 'malicious':
+        if specific_attack == 'ddos':
+            fwd_packets = random.uniform(50, 500)  # High packet count
+            bwd_packets = random.uniform(1, 10)    # Low response
+        elif specific_attack == 'portscan':
+            fwd_packets = random.uniform(10, 100)  # Multiple probe packets
+            bwd_packets = random.uniform(0, 5)     # Few responses
+        else:
+            fwd_packets = random.uniform(5, 50)
+            bwd_packets = random.uniform(1, 20)
+    else:
+        # Normal traffic patterns
+        base_packets = 5 + (minute % 10) + random.uniform(0, 20)  # Time-varying
+        fwd_packets = base_packets * time_multiplier
+        bwd_packets = base_packets * 0.8 * time_multiplier
+    
+    packet_data.append(fwd_packets)
+    packet_data.append(bwd_packets)
+    
+    # Packet lengths - dynamic based on content type
+    if traffic_type == 'video_streaming':
+        fwd_length_total = random.uniform(50000, 200000) * time_multiplier
+        bwd_length_total = random.uniform(1000, 5000)
+    elif traffic_type == 'file_download':
+        fwd_length_total = random.uniform(1000, 10000)
+        bwd_length_total = random.uniform(100000, 500000) * time_multiplier
+    elif traffic_type == 'malicious':
+        if specific_attack == 'ddos':
+            fwd_length_total = random.uniform(100, 1000)  # Small packets
+            bwd_length_total = random.uniform(0, 100)
+        else:
+            fwd_length_total = random.uniform(500, 5000)
+            bwd_length_total = random.uniform(100, 2000)
+    else:
+        # Web browsing and other normal traffic
+        fwd_length_total = random.uniform(5000, 30000) * time_multiplier
+        bwd_length_total = random.uniform(10000, 50000) * time_multiplier
+    
+    packet_data.extend([fwd_length_total, bwd_length_total])
+    
+    # Generate remaining 67 features with realistic dynamic patterns
+    for i in range(67):
+        if i < 20:  # Packet size features
+            if traffic_type == 'malicious':
+                value = random.uniform(0, 100) * random.uniform(0.5, 2.0)
+            else:
+                base_value = 200 + (second % 30) * 10  # Time-varying baseline
+                value = base_value * time_multiplier * random.uniform(0.8, 1.2)
+        elif i < 40:  # Timing features (IAT - Inter Arrival Time)
+            if traffic_type == 'malicious' and specific_attack == 'ddos':
+                value = random.uniform(0, 10)  # Very low inter-arrival time
+            elif traffic_type == 'video_streaming':
+                value = random.uniform(10, 50)  # Consistent timing
+            else:
+                # Dynamic timing based on current time
+                base_timing = 100 + (minute * 5) + random.uniform(0, 200)
+                value = base_timing * time_multiplier
+        elif i < 50:  # Flag counts
+            if traffic_type == 'malicious':
+                if specific_attack == 'portscan':
+                    value = random.uniform(5, 20)  # More SYN flags
+                else:
+                    value = random.uniform(0, 10)
+            else:
+                value = random.uniform(0, 5)
+        else:  # Other features
+            # Create realistic variations based on time
+            time_factor = 1 + 0.1 * np.sin(2 * np.pi * (hour * 60 + minute) / (24 * 60))
+            value = random.uniform(10, 1000) * time_factor * time_multiplier
+        
+        packet_data.append(float(value))
+    
+    # Add the 5 engineered features
+    total_packets = fwd_packets + bwd_packets
+    total_length = fwd_length_total + bwd_length_total
+    packets_per_second = total_packets / max(flow_duration / 1000, 0.001)  # Avoid division by zero
+    avg_packet_size = total_length / max(total_packets, 1)
+    fwd_bwd_ratio = fwd_packets / max(bwd_packets, 1)
+    
+    packet_data.extend([total_packets, total_length, packets_per_second, avg_packet_size, fwd_bwd_ratio])
+    
+    # Store metadata for debugging
+    metadata = {
+        'traffic_type': traffic_type,
+        'specific_attack': specific_attack,
+        'is_peak_hour': is_peak_hour,
+        'time_multiplier': time_multiplier,
+        'timestamp': current_time.isoformat()
+    }
+    
+    return packet_data, metadata
 
 def automatic_packet_scanner():
     """Background thread function for automatic packet scanning"""
     global scanning_active
     
+    packet_count = 0
     while scanning_active:
         try:
-            # Generate realistic packet data
-            packet_data = generate_realistic_packet_data()
+            # Generate truly dynamic packet data
+            packet_data, metadata = generate_dynamic_packet_data()
+            
+            # Generate a realistic source IP
+            source_ip = generate_random_ip()
             
             # Make prediction on the generated packet
             result = predict_packet(packet_data)
             
             if result:
-                print(f"🔍 Auto-scanned packet: {result['prediction']} (Confidence: {result['confidence']:.1f}%)")
+                packet_count += 1
+                traffic_info = f"[{metadata['traffic_type']}]"
+                if metadata['specific_attack']:
+                    traffic_info += f" [{metadata['specific_attack']}]"
+                
+                print(f"🔍 Packet #{packet_count} {traffic_info}: {result['prediction']} (Confidence: {result['confidence']:.1f}%) from {source_ip}")
+                
+                # Store the prediction with the source IP
+                store_prediction(source_ip, result)
             
-            # Wait for a random interval between 2-8 seconds to simulate realistic traffic
-            time.sleep(random.uniform(2, 8))
+            # Dynamic scanning interval based on time of day
+            current_hour = datetime.now().hour
+            if current_hour in [9, 10, 11, 14, 15, 16, 19, 20, 21]:  # Peak hours
+                scan_interval = random.uniform(1, 3)  # Faster scanning during peak
+            else:
+                scan_interval = random.uniform(3, 8)  # Slower during off-peak
+            
+            time.sleep(scan_interval)
             
         except Exception as e:
             print(f"Error in automatic scanning: {e}")
