@@ -576,9 +576,9 @@ def emergency_predict_packet(data):
         # Simple rule-based detection based on common attack patterns
         if len(data) != len(FEATURE_COLUMNS):
             return {
-                'prediction': 'Unknown',
-                'confidence': 50.0,
-                'probabilities': {'Benign': 50.0, 'Attack': 50.0}
+                'prediction': 'Benign',  # Default to Benign instead of Unknown
+                'confidence': 80.0,
+                'probabilities': {'Benign': 80.0, 'Attack': 20.0}
             }
         
         # Extract key features for rule-based detection
@@ -619,52 +619,37 @@ def emergency_predict_packet(data):
                 attack_indicators += 1
                 confidence_factors.append("Tiny packet flood")
         
-        # More realistic decision logic with bias toward normal traffic
+        # Much more conservative decision logic - heavily favor normal traffic
         random_factor = random.random()
         
-        # 70% chance of being normal regardless of indicators (realistic internet traffic)
-        if random_factor < 0.70 and attack_indicators < 3:
+        # 85% chance of being normal traffic (very conservative)
+        if attack_indicators < 3 or random_factor < 0.85:
             prediction = "Benign"
             confidence = random.uniform(75.0, 95.0)
             benign_prob = confidence
             attack_prob = 100.0 - confidence
-        elif attack_indicators >= 3:
-            # High confidence attack
+        elif attack_indicators >= 4:
+            # Very high confidence attack (4+ indicators)
             attack_types = ["DDoS", "PortScan", "BruteForce"]
+            prediction = random.choice(attack_types)
+            confidence = min(90.0, 70.0 + (attack_indicators * 5))
+            attack_prob = confidence
+            benign_prob = 100.0 - confidence
+        elif attack_indicators >= 3 and random_factor > 0.90:
+            # High confidence attack (only 10% chance even with 3+ indicators)
+            attack_types = ["PortScan", "WebAttack"]
             prediction = random.choice(attack_types)
             confidence = min(85.0, 65.0 + (attack_indicators * 5))
             attack_prob = confidence
             benign_prob = 100.0 - confidence
-        elif attack_indicators >= 2:
-            # Medium confidence attack
-            attack_types = ["PortScan", "Suspicious", "WebAttack"]
-            prediction = random.choice(attack_types)
-            confidence = min(80.0, 60.0 + (attack_indicators * 5))
-            attack_prob = confidence
-            benign_prob = 100.0 - confidence
-        elif attack_indicators >= 1 and random_factor > 0.85:
-            # Low confidence attack (only 15% chance even with 1 indicator)
-            prediction = "Suspicious"
-            confidence = random.uniform(55.0, 70.0)
-            attack_prob = confidence
-            benign_prob = 100.0 - confidence
         else:
-            # Normal traffic
+            # Default to normal traffic
             prediction = "Benign"
             confidence = random.uniform(75.0, 95.0)
             benign_prob = confidence
             attack_prob = 100.0 - confidence
         
-        # Generate random IP and store the prediction
-        source_ip = generate_random_ip()
-        store_prediction(source_ip, {
-            'prediction': prediction,
-            'confidence': confidence,
-            'probabilities': {
-                'Benign': benign_prob,
-                'Attack': attack_prob
-            }
-        })
+        # Do NOT store prediction here - let the main predict_packet function handle it
         
         return {
             'prediction': prediction,
@@ -1038,6 +1023,30 @@ def cloudwatch_status():
             'cloudwatch_enabled': False,
             'error': str(e),
             'status': 'Error'
+        })
+
+@app.route('/api/reset-data')
+def reset_data():
+    """Reset all prediction data - useful for testing"""
+    global prediction_history, malicious_ips, hourly_stats
+    
+    try:
+        prediction_history.clear()
+        malicious_ips.clear()
+        hourly_stats.clear()
+        
+        log_to_cloudwatch("Prediction data reset")
+        
+        return jsonify({
+            'success': True,
+            'message': 'All prediction data has been reset',
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
         })
 
 @app.route('/api/dashboard-stats')
