@@ -48,6 +48,10 @@ def setup_cloudwatch_logging():
         # Setup basic logging for local development
         logging.basicConfig(level=logging.INFO)
         return None, None, False
+    except ImportError as e:
+        print(f"⚠️ boto3 not available: {e}")
+        logging.basicConfig(level=logging.INFO)
+        return None, None, False
     except Exception as e:
         print(f"⚠️ CloudWatch setup failed: {e}")
         logging.basicConfig(level=logging.INFO)
@@ -718,7 +722,11 @@ if __name__ == '__main__':
     
     start_automatic_scanning()
     
-    print("🚀 Flask app starting on http://0.0.0.0:5000")
+    # Check if running in production (environment variable or nohup)
+    is_production = os.environ.get('FLASK_ENV') == 'production' or not os.isatty(0)
+    debug_mode = not is_production
+    
+    print(f"🚀 Flask app starting on http://0.0.0.0:5000 (debug={debug_mode})")
     print("📊 Real-time analytics will be available immediately!")
     print("💡 Tip: The graphs will populate automatically as packets are scanned")
     
@@ -732,4 +740,4 @@ if __name__ == '__main__':
     log_to_cloudwatch("Flask app started successfully")
     send_custom_metric('AppStartup', 1)
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=debug_mode)

@@ -74,15 +74,25 @@ jobs:
         ssh $SSH_OPTS ec2-user@$HOST "mkdir -p /home/ec2-user/abhishek-thesis/dataset"
         scp $SSH_OPTS dataset/balanced_dataset.csv ec2-user@$HOST:/home/ec2-user/abhishek-thesis/dataset/
         
-        # Update dependencies if needed
-        echo "Updating Python dependencies..."
-        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && python3 -m pip install --user --upgrade numpy pandas scikit-learn"
+        # Install all dependencies from requirements.txt
+        echo "Installing Python dependencies from requirements.txt..."
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && python3 -m pip install --user -r requirements.txt"
+        
+        # Test imports before starting the app
+        echo "Testing Python imports..."
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && python3 -c 'import flask, pandas, numpy, sklearn, plotly, joblib; print(\"All imports successful\")'"
+        
+        # Test boto3 import separately (might not have credentials but should import)
+        echo "Testing AWS boto3 import..."
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && python3 -c 'import boto3; print(\"boto3 import successful\")'"
         
         # Create startup script and start Flask app
         echo "Creating startup script..."
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo '#!/bin/bash' > start_flask.sh"
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'cd /home/ec2-user/abhishek-thesis' >> start_flask.sh"
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'export PYTHONPATH=/home/ec2-user/.local/lib/python3.9/site-packages:\$PYTHONPATH' >> start_flask.sh"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'export FLASK_ENV=production' >> start_flask.sh"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'export AWS_DEFAULT_REGION=eu-north-1' >> start_flask.sh"
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'nohup python3 app.py > flask_app.log 2>&1 &' >> start_flask.sh"
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'echo \$! > flask_app.pid' >> start_flask.sh"
         ssh $SSH_OPTS ec2-user@$HOST "chmod +x /home/ec2-user/abhishek-thesis/start_flask.sh"
@@ -99,6 +109,10 @@ jobs:
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && if [ -f flask_app.pid ]; then echo 'PID file found:'; cat flask_app.pid; fi"
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && ps aux | grep '[p]ython.*app.py' || echo 'Flask process not found in ps output'"
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && netstat -tlnp 2>/dev/null | grep ':5000' || echo 'Port 5000 not listening'"
+        
+        # Show logs if app failed to start
+        echo "Checking Flask app logs..."
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && if [ -f flask_app.log ]; then echo '=== Flask App Logs ==='; tail -20 flask_app.log; else echo 'No log file found'; fi"
         
         # Test the app
         ssh $SSH_OPTS ec2-user@$HOST "curl -s http://localhost:5000 && echo 'App is responding!'"
