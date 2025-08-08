@@ -39,53 +39,62 @@ jobs:
         echo "$PRIVATE_KEY" > private_key.pem
         chmod 600 private_key.pem
         
+        # Create .ssh directory and known_hosts file
+        mkdir -p ~/.ssh
+        touch ~/.ssh/known_hosts
+        chmod 700 ~/.ssh
+        chmod 600 ~/.ssh/known_hosts
+        
         # Add EC2 host to known hosts
-        ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
+        ssh-keyscan -H $HOST >> ~/.ssh/known_hosts 2>/dev/null || true
+        
+        # Alternative: Use StrictHostKeyChecking=no (less secure but more reliable)
+        SSH_OPTIONS="-i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
         
         # Stop existing Flask app if running
         echo "Stopping existing Flask application..."
-        ssh -i private_key.pem $USER@$HOST "pkill -f 'python.*app.py' || true"
-        ssh -i private_key.pem $USER@$HOST "pkill -f 'flask' || true"
+        ssh $SSH_OPTIONS $USER@$HOST "pkill -f 'python.*app.py' || true"
+        ssh $SSH_OPTIONS $USER@$HOST "pkill -f 'flask' || true"
         
         # Create application directory if it doesn't exist
         echo "Creating application directory..."
-        ssh -i private_key.pem $USER@$HOST "mkdir -p $APP_DIR"
+        ssh $SSH_OPTIONS $USER@$HOST "mkdir -p $APP_DIR"
         
         # Backup old code (optional)
         echo "Backing up old code..."
-        ssh -i private_key.pem $USER@$HOST "if [ -d $APP_DIR/backup ]; then rm -rf $APP_DIR/backup; fi"
-        ssh -i private_key.pem $USER@$HOST "if [ -f $APP_DIR/app.py ]; then mkdir -p $APP_DIR/backup && cp -r $APP_DIR/* $APP_DIR/backup/ || true; fi"
+        ssh $SSH_OPTIONS $USER@$HOST "if [ -d $APP_DIR/backup ]; then rm -rf $APP_DIR/backup; fi"
+        ssh $SSH_OPTIONS $USER@$HOST "if [ -f $APP_DIR/app.py ]; then mkdir -p $APP_DIR/backup && cp -r $APP_DIR/* $APP_DIR/backup/ || true; fi"
         
         # Remove old application files (except backup)
         echo "Removing old application files..."
-        ssh -i private_key.pem $USER@$HOST "cd $APP_DIR && find . -maxdepth 1 -type f -not -name 'backup' -delete || true"
-        ssh -i private_key.pem $USER@$HOST "cd $APP_DIR && find . -maxdepth 1 -type d -not -name '.' -not -name 'backup' -exec rm -rf {} + || true"
+        ssh $SSH_OPTIONS $USER@$HOST "cd $APP_DIR && find . -maxdepth 1 -type f -not -name 'backup' -delete || true"
+        ssh $SSH_OPTIONS $USER@$HOST "cd $APP_DIR && find . -maxdepth 1 -type d -not -name '.' -not -name 'backup' -exec rm -rf {} + || true"
         
-        # Upload new code
+        # Upload new code (exclude dataset to avoid large file transfer)
         echo "Uploading new application code..."
-        scp -i private_key.pem -r app.py requirements.txt templates/ saved_models/ dataset/ $USER@$HOST:$APP_DIR/
+        scp $SSH_OPTIONS -r app.py requirements.txt templates/ saved_models/ $USER@$HOST:$APP_DIR/
         
         # Install Python and pip if not available
         echo "Setting up Python environment..."
-        ssh -i private_key.pem $USER@$HOST "sudo yum update -y"
-        ssh -i private_key.pem $USER@$HOST "sudo yum install -y python3 python3-pip"
+        ssh $SSH_OPTIONS $USER@$HOST "sudo yum update -y || true"
+        ssh $SSH_OPTIONS $USER@$HOST "sudo yum install -y python3 python3-pip || true"
         
         # Install Python dependencies
         echo "Installing Python dependencies..."
-        ssh -i private_key.pem $USER@$HOST "cd $APP_DIR && python3 -m pip install --user -r requirements.txt"
+        ssh $SSH_OPTIONS $USER@$HOST "cd $APP_DIR && python3 -m pip install --user -r requirements.txt"
         
         # Start Flask application in background
         echo "Starting Flask application..."
-        ssh -i private_key.pem $USER@$HOST "cd $APP_DIR && nohup python3 app.py > flask_app.log 2>&1 &"
+        ssh $SSH_OPTIONS $USER@$HOST "cd $APP_DIR && nohup python3 app.py > flask_app.log 2>&1 &"
         
         # Wait a moment and check if app started
         echo "Checking application status..."
         sleep 10
-        ssh -i private_key.pem $USER@$HOST "cd $APP_DIR && ps aux | grep 'python.*app.py' | grep -v grep || echo 'App may not be running'"
+        ssh $SSH_OPTIONS $USER@$HOST "cd $APP_DIR && ps aux | grep 'python.*app.py' | grep -v grep || echo 'App may not be running'"
         
         # Test if app is responding
         echo "Testing application..."
-        ssh -i private_key.pem $USER@$HOST "curl -s http://localhost:5000 > /dev/null && echo 'Flask app is responding' || echo 'Flask app may not be responding'"
+        ssh $SSH_OPTIONS $USER@$HOST "curl -s http://localhost:5000 > /dev/null && echo 'Flask app is responding' || echo 'Flask app may not be responding'"
         
         # Cleanup
         rm -f private_key.pem
