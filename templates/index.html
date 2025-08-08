@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Threat Detection System</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom CSS -->
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --info-color: #17a2b8;
+            --light-bg: #f8f9fa;
+            --dark-bg: #343a40;
+            --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --gradient-success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        body {
+            background: var(--light-bg);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+        }
+
+        .navbar {
+            background: var(--gradient-primary) !important;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+
+        .hero-section {
+            background: var(--gradient-primary);
+            color: white;
+            padding: 80px 0;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 100" fill="rgba(255,255,255,0.1)"><polygon points="1000,100 1000,0 0,100"/></svg>');
+            background-size: cover;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            margin-bottom: 30px;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+
+        .card-header {
+            background: var(--gradient-secondary);
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            padding: 20px;
+            font-weight: 600;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: scale(1.05);
+        }
+
+        .stat-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            background: var(--gradient-success);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-weight: 500;
+        }
+
+        .btn-custom {
+            background: var(--gradient-primary);
+            border: none;
+            border-radius: 25px;
+            padding: 12px 30px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+
+        .btn-danger-custom {
+            background: var(--gradient-secondary);
+            border: none;
+            border-radius: 25px;
+            padding: 12px 30px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .prediction-result {
+            padding: 30px;
+            border-radius: 15px;
+            margin-top: 20px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .prediction-normal {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            color: #155724;
+            border: 2px solid #b8dabc;
+        }
+
+        .prediction-attack {
+            background: linear-gradient(135deg, #f8d7da, #f1b0b7);
+            color: #721c24;
+            border: 2px solid #f1b0b7;
+        }
+
+        .form-control, .form-select {
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            padding: 12px 15px;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .loading-spinner {
+            display: none;
+            margin: 20px auto;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .ip-list {
+            background: #fff;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .ip-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            color: white;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .ip-item i {
+            margin-right: 15px;
+            font-size: 1.2rem;
+        }
+
+        .alert-custom {
+            border: none;
+            border-radius: 15px;
+            padding: 20px;
+            font-weight: 500;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 50px;
+            position: relative;
+        }
+
+        .section-title h2 {
+            color: var(--primary-color);
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+
+        .section-title::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 4px;
+            background: var(--gradient-primary);
+            border-radius: 2px;
+        }
+
+        .nav-tabs .nav-link {
+            border-radius: 15px 15px 0 0;
+            border: none;
+            background: #f8f9fa;
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-right: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-tabs .nav-link.active {
+            background: var(--gradient-primary);
+            color: white;
+        }
+
+        .tab-content {
+            background: white;
+            border-radius: 0 15px 15px 15px;
+            padding: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        @media (max-width: 768px) {
+            .hero-section {
+                padding: 60px 0;
+            }
+            
+            .stat-card {
+                margin-bottom: 20px;
+            }
+            
+            .card {
+                margin-bottom: 20px;
+            }
+        }
+
+        .floating-action {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--gradient-primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .floating-action:hover {
+            transform: scale(1.1);
+            color: white;
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-shield-alt me-2"></i>
+                Network Threat Detection
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#dashboard"><i class="fas fa-tachometer-alt me-1"></i>Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#prediction"><i class="fas fa-search me-1"></i>Packet Analysis</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#analytics"><i class="fas fa-chart-bar me-1"></i>Analytics</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section" id="dashboard">
+        <div class="hero-content">
+            <div class="container">
+                <h1 class="display-4 mb-4">
+                    <i class="fas fa-shield-alt me-3"></i>
+                    Advanced Network Threat Detection System
+                </h1>
+                <p class="lead mb-4">
+                    Real-time packet analysis using Machine Learning to detect and prevent cyber threats
+                </p>
+                <div class="row mt-5">
+                    <div class="col-md-3 col-sm-6 mb-4">
+                        <div class="stat-card">
+                            <i class="fas fa-network-wired stat-icon"></i>
+                            <div class="stat-number" id="totalPackets">0</div>
+                            <div class="stat-label">Total Packets Analyzed</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-4">
+                        <div class="stat-card">
+                            <i class="fas fa-check-circle stat-icon text-success"></i>
+                            <div class="stat-number text-success" id="normalPackets">0</div>
+                            <div class="stat-label">Normal Packets</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-4">
+                        <div class="stat-card">
+                            <i class="fas fa-exclamation-triangle stat-icon text-danger"></i>
+                            <div class="stat-number text-danger" id="attackPackets">0</div>
+                            <div class="stat-label">Attack Packets</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-4">
+                        <div class="stat-card">
+                            <i class="fas fa-percentage stat-icon text-warning"></i>
+                            <div class="stat-number text-warning" id="accuracyRate">97.4%</div>
+                            <div class="stat-label">Model Accuracy</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-4">
+                        <div class="stat-card">
+                            <i class="fas fa-radar stat-icon text-info" id="scanningIcon"></i>
+                            <div class="stat-number text-info" id="scanningStatus">LIVE</div>
+                            <div class="stat-label">Real-time Scanning</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Live Status Indicator -->
+                <div class="row justify-content-center mt-3">
+                    <div class="col-auto">
+                        <div class="alert alert-info alert-custom d-flex align-items-center" id="liveStatus">
+                            <i class="fas fa-broadcast-tower me-2 fa-pulse"></i>
+                            <span>🔍 Automatically scanning network packets in real-time...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <div class="container my-5">
+        <!-- Packet Prediction Section -->
+        <section id="prediction" class="mb-5">
+            <div class="section-title">
+                <h2><i class="fas fa-search me-2"></i>Packet Analysis & Prediction</h2>
+                <p class="text-muted">Upload packet data or use sample data for real-time threat detection</p>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-upload me-2"></i>
+                            Packet Data Input
+                        </div>
+                        <div class="card-body">
+                            <ul class="nav nav-tabs" id="inputTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="sample-tab" data-bs-toggle="tab" 
+                                            data-bs-target="#sample" type="button" role="tab">
+                                        <i class="fas fa-vial me-1"></i>Sample Data
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="manual-tab" data-bs-toggle="tab" 
+                                            data-bs-target="#manual" type="button" role="tab">
+                                        <i class="fas fa-keyboard me-1"></i>Manual Input
+                                    </button>
+                                </li>
+                            </ul>
+                            
+                            <div class="tab-content" id="inputTabContent">
+                                <div class="tab-pane fade show active" id="sample" role="tabpanel">
+                                    <div class="alert alert-info alert-custom">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        Click the button below to analyze a random sample packet from our dataset
+                                    </div>
+                                    <div class="text-center">
+                                        <button class="btn btn-custom btn-lg" onclick="analyzeSamplePacket()">
+                                            <i class="fas fa-flask me-2"></i>Analyze Sample Packet
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="tab-pane fade" id="manual" role="tabpanel">
+                                    <form id="packetForm">
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Protocol</label>
+                                                <select class="form-select" name="Protocol">
+                                                    <option value="6">TCP (6)</option>
+                                                    <option value="17">UDP (17)</option>
+                                                    <option value="1">ICMP (1)</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Flow Duration</label>
+                                                <input type="number" class="form-control" name="Flow Duration" placeholder="Enter flow duration">
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Total Fwd Packets</label>
+                                                <input type="number" class="form-control" name="Total Fwd Packets" placeholder="Forward packets">
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Total Backward Packets</label>
+                                                <input type="number" class="form-control" name="Total Backward Packets" placeholder="Backward packets">
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Flow Bytes/s</label>
+                                                <input type="number" step="0.01" class="form-control" name="Flow Bytes/s" placeholder="Bytes per second">
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Flow Packets/s</label>
+                                                <input type="number" step="0.01" class="form-control" name="Flow Packets/s" placeholder="Packets per second">
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="alert alert-warning alert-custom">
+                                            <i class="fas fa-exclamation-triangle me-2"></i>
+                                            Note: For simplicity, only key features are shown. Other features will use default values.
+                                        </div>
+                                        
+                                        <div class="text-center">
+                                            <button type="submit" class="btn btn-danger-custom btn-lg">
+                                                <i class="fas fa-search me-2"></i>Analyze Packet
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-pie me-2"></i>
+                            Prediction Result
+                        </div>
+                        <div class="card-body">
+                            <div id="predictionResult" class="text-center">
+                                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">No analysis performed yet</p>
+                                <small class="text-muted">Upload packet data to see prediction results</small>
+                            </div>
+                            
+                            <div class="loading-spinner">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analytics Section -->
+        <section id="analytics" class="mb-5">
+            <div class="section-title">
+                <h2><i class="fas fa-chart-bar me-2"></i>Network Analytics Dashboard</h2>
+                <p class="text-muted">Real-time visualization of network traffic patterns and threat analysis</p>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-6 mb-4">
+                    <div class="chart-container">
+                        <h5 class="mb-3"><i class="fas fa-chart-pie me-2"></i>Traffic Classification</h5>
+                        <div id="pieChart"></div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6 mb-4">
+                    <div class="chart-container">
+                        <h5 class="mb-3"><i class="fas fa-chart-bar me-2"></i>Attack Sources</h5>
+                        <div id="barChart"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-8 mb-4">
+                    <div class="chart-container">
+                        <h5 class="mb-3"><i class="fas fa-chart-line me-2"></i>Traffic Pattern (24 Hours)</h5>
+                        <div id="lineChart"></div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 mb-4">
+                    <div class="ip-list">
+                        <h5 class="mb-3"><i class="fas fa-exclamation-triangle me-2 text-danger"></i>Malicious IPs</h5>
+                        <div id="maliciousIpList">
+                            <div class="text-center">
+                                <div class="spinner-border text-danger" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Model Information -->
+        <section class="mb-5">
+            <div class="section-title">
+                <h2><i class="fas fa-brain me-2"></i>Model Performance</h2>
+                <p class="text-muted">Detailed information about our machine learning models</p>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-trophy me-2"></i>
+                            Model Comparison Results
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped" id="modelTable">
+                                    <thead>
+                                        <tr>
+                                            <th><i class="fas fa-robot me-1"></i>Model</th>
+                                            <th><i class="fas fa-bullseye me-1"></i>Accuracy</th>
+                                            <th><i class="fas fa-balance-scale me-1"></i>F1 Score</th>
+                                            <th><i class="fas fa-chart-line me-1"></i>CV Mean</th>
+                                            <th><i class="fas fa-award me-1"></i>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="modelTableBody">
+                                        <tr>
+                                            <td colspan="5" class="text-center">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Floating Action Button -->
+    <button class="floating-action pulse" onclick="refreshAnalytics()" title="Refresh Analytics">
+        <i class="fas fa-sync-alt"></i>
+    </button>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JavaScript -->
+    <script>
+        // Initialize the dashboard with real-time features
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAnalytics();
+            loadModelInfo();
+            checkScanningStatus();
+            startAutoRefresh();
+            
+            console.log('🚀 Real-time Network Threat Detection System initialized');
+            console.log('📊 Analytics will auto-refresh every 10 seconds');
+        });
+
+        // Sample packet data for testing
+        const samplePackets = [
+            {
+                'Protocol': 6, 'Flow Duration': 424296, 'Total Fwd Packets': 17, 'Total Backward Packets': 11,
+                'Fwd Packets Length Total': 537, 'Bwd Packets Length Total': 4565, 'Flow Bytes/s': 12024.62,
+                'Flow Packets/s': 65.99, 'Packet Length Mean': 175.93, 'Avg Packet Size': 182.21
+            },
+            {
+                'Protocol': 17, 'Flow Duration': 305420, 'Total Fwd Packets': 2, 'Total Backward Packets': 2,
+                'Fwd Packets Length Total': 78, 'Bwd Packets Length Total': 486, 'Flow Bytes/s': 1846.64,
+                'Flow Packets/s': 13.10, 'Packet Length Mean': 120.6, 'Avg Packet Size': 150.75
+            }
+        ];
+
+        function getRandomSamplePacket() {
+            const sample = samplePackets[Math.floor(Math.random() * samplePackets.length)];
+            const fullSample = {};
+            
+            // Fill in all required features with sample values or defaults
+            const allFeatures = [
+                'Protocol', 'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets',
+                'Fwd Packets Length Total', 'Bwd Packets Length Total', 'Fwd Packet Length Max',
+                'Fwd Packet Length Min', 'Fwd Packet Length Mean', 'Fwd Packet Length Std',
+                'Bwd Packet Length Max', 'Bwd Packet Length Min', 'Bwd Packet Length Mean',
+                'Bwd Packet Length Std', 'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean',
+                'Flow IAT Std', 'Flow IAT Max', 'Flow IAT Min', 'Fwd IAT Total',
+                'Fwd IAT Mean', 'Fwd IAT Std', 'Fwd IAT Max', 'Fwd IAT Min',
+                'Bwd IAT Total', 'Bwd IAT Mean', 'Bwd IAT Std', 'Bwd IAT Max',
+                'Bwd IAT Min', 'Fwd PSH Flags', 'Bwd PSH Flags', 'Fwd URG Flags',
+                'Bwd URG Flags', 'Fwd Header Length', 'Bwd Header Length', 'Fwd Packets/s',
+                'Bwd Packets/s', 'Packet Length Min', 'Packet Length Max', 'Packet Length Mean',
+                'Packet Length Std', 'Packet Length Variance', 'FIN Flag Count',
+                'SYN Flag Count', 'RST Flag Count', 'PSH Flag Count', 'ACK Flag Count',
+                'URG Flag Count', 'CWE Flag Count', 'ECE Flag Count', 'Down/Up Ratio',
+                'Avg Packet Size', 'Avg Fwd Segment Size', 'Avg Bwd Segment Size',
+                'Fwd Avg Bytes/Bulk', 'Fwd Avg Packets/Bulk', 'Fwd Avg Bulk Rate',
+                'Bwd Avg Bytes/Bulk', 'Bwd Avg Packets/Bulk', 'Bwd Avg Bulk Rate',
+                'Subflow Fwd Packets', 'Subflow Fwd Bytes', 'Subflow Bwd Packets',
+                'Subflow Bwd Bytes', 'Init Fwd Win Bytes', 'Init Bwd Win Bytes',
+                'Fwd Act Data Packets', 'Fwd Seg Size Min', 'Active Mean', 'Active Std',
+                'Active Max', 'Active Min', 'Idle Mean', 'Idle Std', 'Idle Max', 'Idle Min'
+            ];
+
+            allFeatures.forEach(feature => {
+                fullSample[feature] = sample[feature] || Math.random() * 100;
+            });
+
+            return fullSample;
+        }
+
+        function analyzeSamplePacket() {
+            const sampleData = getRandomSamplePacket();
+            predictPacket(sampleData);
+        }
+
+        function predictPacket(data) {
+            const resultDiv = document.getElementById('predictionResult');
+            const loadingSpinner = document.querySelector('.loading-spinner');
+            
+            // Show loading
+            resultDiv.style.display = 'none';
+            loadingSpinner.style.display = 'block';
+
+            fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                loadingSpinner.style.display = 'none';
+                resultDiv.style.display = 'block';
+                
+                if (data.success) {
+                    const isAttack = data.prediction !== 'Benign';
+                    const resultClass = isAttack ? 'prediction-attack' : 'prediction-normal';
+                    const icon = isAttack ? 'fas fa-exclamation-triangle' : 'fas fa-check-circle';
+                    const iconColor = isAttack ? 'text-danger' : 'text-success';
+                    
+                    resultDiv.innerHTML = `
+                        <div class="prediction-result ${resultClass}">
+                            <i class="${icon} fa-3x ${iconColor} mb-3"></i>
+                            <h4>${isAttack ? 'THREAT DETECTED' : 'NORMAL TRAFFIC'}</h4>
+                            <p class="mb-2">Classification: <strong>${data.prediction}</strong></p>
+                            <p class="mb-2">Confidence: <strong>${data.confidence}%</strong></p>
+                            <div class="mt-3">
+                                <small>Benign: ${data.probabilities.benign}% | Attack: ${data.probabilities.attack}%</small>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Refresh analytics to update counters
+                    setTimeout(() => {
+                        loadAnalytics();
+                    }, 500);
+                    
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-danger alert-custom">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error: ${data.error}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                loadingSpinner.style.display = 'none';
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `
+                    <div class="alert alert-danger alert-custom">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Connection error. Please try again.
+                    </div>
+                `;
+            });
+        }
+
+        function updateCounter(elementId, increment) {
+            const element = document.getElementById(elementId);
+            const currentValue = parseInt(element.textContent) || 0;
+            element.textContent = currentValue + increment;
+        }
+
+        function loadAnalytics() {
+            fetch('/analytics')
+            .then(response => response.json())
+            .then(data => {
+                if (data.pie_chart) {
+                    Plotly.newPlot('pieChart', JSON.parse(data.pie_chart).data, JSON.parse(data.pie_chart).layout, {responsive: true});
+                }
+                
+                if (data.bar_chart) {
+                    Plotly.newPlot('barChart', JSON.parse(data.bar_chart).data, JSON.parse(data.bar_chart).layout, {responsive: true});
+                }
+                
+                if (data.line_chart) {
+                    Plotly.newPlot('lineChart', JSON.parse(data.line_chart).data, JSON.parse(data.line_chart).layout, {responsive: true});
+                }
+                
+                if (data.malicious_ips) {
+                    const ipListDiv = document.getElementById('maliciousIpList');
+                    ipListDiv.innerHTML = data.malicious_ips.map(ip => `
+                        <div class="ip-item">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span>${ip}</span>
+                        </div>
+                    `).join('');
+                }
+                
+                if (data.stats) {
+                    // Update the counters in the hero section dynamically
+                    document.getElementById('totalPackets').textContent = data.stats.total_packets;
+                    document.getElementById('normalPackets').textContent = data.stats.normal_packets;
+                    document.getElementById('attackPackets').textContent = data.stats.attack_packets;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading analytics:', error);
+            });
+        }
+
+        function loadModelInfo() {
+            fetch('/model-info')
+            .then(response => response.json())
+            .then(data => {
+                if (data.model_comparison) {
+                    const tableBody = document.getElementById('modelTableBody');
+                    // Sort models by accuracy in descending order
+                    const sortedModels = data.model_comparison.sort((a, b) => b.Accuracy - a.Accuracy);
+                    
+                    tableBody.innerHTML = sortedModels.map((model, index) => {
+                        const isWinner = model.Model === 'Decision Tree'; // Decision Tree is the best model
+                        const statusBadge = isWinner ? 
+                            '<span class="badge bg-success"><i class="fas fa-crown me-1"></i>Best Model</span>' : 
+                            '<span class="badge bg-secondary">Available</span>';
+                        
+                        return `
+                            <tr ${isWinner ? 'class="table-success"' : ''}>
+                                <td><strong>${model.Model}</strong></td>
+                                <td>${(model.Accuracy * 100).toFixed(2)}%</td>
+                                <td>${(model.F1_Score * 100).toFixed(2)}%</td>
+                                <td>${(model.CV_Mean * 100).toFixed(2)}%</td>
+                                <td>${statusBadge}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading model info:', error);
+            });
+        }
+
+        function refreshAnalytics() {
+            loadAnalytics();
+            
+            // Add visual feedback
+            const button = document.querySelector('.floating-action');
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            
+            setTimeout(() => {
+                button.innerHTML = '<i class="fas fa-sync-alt"></i>';
+            }, 2000);
+        }
+
+        // Handle manual form submission
+        document.getElementById('packetForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = {};
+            
+            // Get form values
+            for (let [key, value] of formData.entries()) {
+                data[key] = value || 0;
+            }
+            
+            // Fill in missing features with default values
+            const allFeatures = [
+                'Protocol', 'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets',
+                'Fwd Packets Length Total', 'Bwd Packets Length Total', 'Fwd Packet Length Max',
+                'Fwd Packet Length Min', 'Fwd Packet Length Mean', 'Fwd Packet Length Std',
+                'Bwd Packet Length Max', 'Bwd Packet Length Min', 'Bwd Packet Length Mean',
+                'Bwd Packet Length Std', 'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean',
+                'Flow IAT Std', 'Flow IAT Max', 'Flow IAT Min', 'Fwd IAT Total',
+                'Fwd IAT Mean', 'Fwd IAT Std', 'Fwd IAT Max', 'Fwd IAT Min',
+                'Bwd IAT Total', 'Bwd IAT Mean', 'Bwd IAT Std', 'Bwd IAT Max',
+                'Bwd IAT Min', 'Fwd PSH Flags', 'Bwd PSH Flags', 'Fwd URG Flags',
+                'Bwd URG Flags', 'Fwd Header Length', 'Bwd Header Length', 'Fwd Packets/s',
+                'Bwd Packets/s', 'Packet Length Min', 'Packet Length Max', 'Packet Length Mean',
+                'Packet Length Std', 'Packet Length Variance', 'FIN Flag Count',
+                'SYN Flag Count', 'RST Flag Count', 'PSH Flag Count', 'ACK Flag Count',
+                'URG Flag Count', 'CWE Flag Count', 'ECE Flag Count', 'Down/Up Ratio',
+                'Avg Packet Size', 'Avg Fwd Segment Size', 'Avg Bwd Segment Size',
+                'Fwd Avg Bytes/Bulk', 'Fwd Avg Packets/Bulk', 'Fwd Avg Bulk Rate',
+                'Bwd Avg Bytes/Bulk', 'Bwd Avg Packets/Bulk', 'Bwd Avg Bulk Rate',
+                'Subflow Fwd Packets', 'Subflow Fwd Bytes', 'Subflow Bwd Packets',
+                'Subflow Bwd Bytes', 'Init Fwd Win Bytes', 'Init Bwd Win Bytes',
+                'Fwd Act Data Packets', 'Fwd Seg Size Min', 'Active Mean', 'Active Std',
+                'Active Max', 'Active Min', 'Idle Mean', 'Idle Std', 'Idle Max', 'Idle Min'
+            ];
+
+            allFeatures.forEach(feature => {
+                if (!(feature in data)) {
+                    data[feature] = 0;
+                }
+            });
+            
+            predictPacket(data);
+        });
+
+        // Auto-refresh functionality for real-time updates
+        function checkScanningStatus() {
+            fetch('/scanning/status')
+            .then(response => response.json())
+            .then(data => {
+                const statusElement = document.getElementById('scanningStatus');
+                const iconElement = document.getElementById('scanningIcon');
+                const liveStatusElement = document.getElementById('liveStatus');
+                
+                if (data.scanning_active) {
+                    statusElement.textContent = 'LIVE';
+                    statusElement.className = 'stat-number text-success';
+                    iconElement.className = 'fas fa-radar stat-icon text-success fa-pulse';
+                    liveStatusElement.innerHTML = '<i class="fas fa-broadcast-tower me-2 fa-pulse"></i><span>🔍 Automatically scanning network packets in real-time...</span>';
+                    liveStatusElement.className = 'alert alert-success alert-custom d-flex align-items-center';
+                } else {
+                    statusElement.textContent = 'OFFLINE';
+                    statusElement.className = 'stat-number text-danger';
+                    iconElement.className = 'fas fa-radar stat-icon text-danger';
+                    liveStatusElement.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i><span>⚠️ Automatic scanning is stopped</span>';
+                    liveStatusElement.className = 'alert alert-warning alert-custom d-flex align-items-center';
+                }
+            })
+            .catch(error => {
+                console.error('Error checking scanning status:', error);
+            });
+        }
+
+        // Auto-refresh analytics every 10 seconds
+        function startAutoRefresh() {
+            setInterval(() => {
+                loadAnalytics();
+                checkScanningStatus();
+            }, 10000); // Refresh every 10 seconds
+        }
+
+
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

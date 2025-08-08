@@ -1,0 +1,72 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git
+.mypy_cache
+.pytest_cache
+.hypothesis
+
+# AWS Credentials and Keys
+AdminUser_accessKeys.csv
+AdminUser_credentials.csv
+details.txt
+ec2keypair.pem
+*.pem
+login-details.txt
+
+# Project specific
+pr.txt
+test_app.py
+topic.txt
+
+# Dataset files (large files)
+dataset/
+datasets/
+*.csv
+*.parquet
+*.h5
+*.hdf5
+
+# Jupyter notebooks (optional - you can remove these lines if you want to include them)
+balanced-dataset-generation.ipynb
+modelling.ipynb
+Untitled.ipynb
+
+# Generated files
+aws-infrastructure-details.txt
+aws-infrastructure.json
+setup-github-secrets.bat
+deploy.sh
+CI-CD-SETUP.md
+DEPLOYMENT-CHECKLIST.md
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

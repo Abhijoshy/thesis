@@ -1,0 +1,94 @@
+name: Deploy Flask App to AWS EC2
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies locally (for testing)
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        
+    - name: Test Flask app (basic syntax check)
+      run: |
+        python -c "import app; print('Flask app syntax is valid')"
+        
+    - name: Deploy to EC2
+      env:
+        PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+        HOST: ${{ secrets.EC2_HOST }}
+        USER: ec2-user
+        APP_DIR: /home/ec2-user/abhishek-thesis
+      run: |
+        # Create SSH key file
+        echo "$PRIVATE_KEY" > private_key.pem
+        chmod 600 private_key.pem
+        
+        # Add EC2 host to known hosts
+        ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
+        
+        # Stop existing Flask app if running
+        echo "Stopping existing Flask application..."
+        ssh -i private_key.pem $USER@$HOST "pkill -f 'python.*app.py' || true"
+        ssh -i private_key.pem $USER@$HOST "pkill -f 'flask' || true"
+        
+        # Create application directory if it doesn't exist
+        echo "Creating application directory..."
+        ssh -i private_key.pem $USER@$HOST "mkdir -p $APP_DIR"
+        
+        # Backup old code (optional)
+        echo "Backing up old code..."
+        ssh -i private_key.pem $USER@$HOST "if [ -d $APP_DIR/backup ]; then rm -rf $APP_DIR/backup; fi"
+        ssh -i private_key.pem $USER@$HOST "if [ -f $APP_DIR/app.py ]; then mkdir -p $APP_DIR/backup && cp -r $APP_DIR/* $APP_DIR/backup/ || true; fi"
+        
+        # Remove old application files (except backup)
+        echo "Removing old application files..."
+        ssh -i private_key.pem $USER@$HOST "cd $APP_DIR && find . -maxdepth 1 -type f -not -name 'backup' -delete || true"
+        ssh -i private_key.pem $USER@$HOST "cd $APP_DIR && find . -maxdepth 1 -type d -not -name '.' -not -name 'backup' -exec rm -rf {} + || true"
+        
+        # Upload new code
+        echo "Uploading new application code..."
+        scp -i private_key.pem -r app.py requirements.txt templates/ saved_models/ dataset/ $USER@$HOST:$APP_DIR/
+        
+        # Install Python and pip if not available
+        echo "Setting up Python environment..."
+        ssh -i private_key.pem $USER@$HOST "sudo yum update -y"
+        ssh -i private_key.pem $USER@$HOST "sudo yum install -y python3 python3-pip"
+        
+        # Install Python dependencies
+        echo "Installing Python dependencies..."
+        ssh -i private_key.pem $USER@$HOST "cd $APP_DIR && python3 -m pip install --user -r requirements.txt"
+        
+        # Start Flask application in background
+        echo "Starting Flask application..."
+        ssh -i private_key.pem $USER@$HOST "cd $APP_DIR && nohup python3 app.py > flask_app.log 2>&1 &"
+        
+        # Wait a moment and check if app started
+        echo "Checking application status..."
+        sleep 10
+        ssh -i private_key.pem $USER@$HOST "cd $APP_DIR && ps aux | grep 'python.*app.py' | grep -v grep || echo 'App may not be running'"
+        
+        # Test if app is responding
+        echo "Testing application..."
+        ssh -i private_key.pem $USER@$HOST "curl -s http://localhost:5000 > /dev/null && echo 'Flask app is responding' || echo 'Flask app may not be responding'"
+        
+        # Cleanup
+        rm -f private_key.pem
+        
+        echo "Deployment completed!"
+        echo "Access your app at: http://$HOST:5000"
