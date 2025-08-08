@@ -82,13 +82,11 @@ jobs:
         
         # Create startup script and start Flask app
         echo "Creating startup script..."
-        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && cat > start_flask.sh << 'EOF'
-#!/bin/bash
-cd /home/ec2-user/abhishek-thesis
-export PYTHONPATH=/home/ec2-user/.local/lib/python3.9/site-packages:$PYTHONPATH
-nohup python3 app.py > flask_app.log 2>&1 &
-echo \$! > flask_app.pid
-EOF"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo '#!/bin/bash' > start_flask.sh"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'cd /home/ec2-user/abhishek-thesis' >> start_flask.sh"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'export PYTHONPATH=/home/ec2-user/.local/lib/python3.9/site-packages:\$PYTHONPATH' >> start_flask.sh"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'nohup python3 app.py > flask_app.log 2>&1 &' >> start_flask.sh"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'echo \$! > flask_app.pid' >> start_flask.sh"
         ssh $SSH_OPTS ec2-user@$HOST "chmod +x /home/ec2-user/abhishek-thesis/start_flask.sh"
         
         echo "Starting Flask application..."
