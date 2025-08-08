@@ -35,7 +35,7 @@ test_app.py
 topic.txt
 
 # Dataset files (large files) - exclude all except balanced_dataset.csv
-dataset/
+dataset/*
 !dataset/balanced_dataset.csv
 datasets/
 *.csv
