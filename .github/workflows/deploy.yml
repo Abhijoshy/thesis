@@ -70,8 +70,9 @@ jobs:
         echo "Uploading saved_models folder..."
         scp $SSH_OPTS -r saved_models/ ec2-user@$HOST:/home/ec2-user/abhishek-thesis/
         
-        echo "Uploading dataset folder..."
-        scp $SSH_OPTS -r dataset/ ec2-user@$HOST:/home/ec2-user/abhishek-thesis/
+        echo "Creating dataset directory and uploading balanced_dataset.csv..."
+        ssh $SSH_OPTS ec2-user@$HOST "mkdir -p /home/ec2-user/abhishek-thesis/dataset"
+        scp $SSH_OPTS dataset/balanced_dataset.csv ec2-user@$HOST:/home/ec2-user/abhishek-thesis/dataset/
         
         # Update dependencies if needed
         echo "Updating Python dependencies..."
