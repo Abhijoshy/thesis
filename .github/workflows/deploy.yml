@@ -81,9 +81,12 @@ jobs:
         
         # Create startup script and start Flask app
         echo "Creating startup script..."
-        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo '#!/bin/bash
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && cat > start_app.sh << 'EOF'
+#!/bin/bash
 cd /home/ec2-user/abhishek-thesis
-python3 app.py > flask_app.log 2>&1' > start_app.sh && chmod +x start_app.sh"
+python3 app.py > flask_app.log 2>&1
+EOF"
+        ssh $SSH_OPTS ec2-user@$HOST "chmod +x /home/ec2-user/abhishek-thesis/start_app.sh"
         
         echo "Starting Flask application..."
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && nohup ./start_app.sh &"
