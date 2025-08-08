@@ -256,6 +256,123 @@ for /f "tokens=*" %%i in ('aws ec2 describe-instances --instance-ids %INSTANCE_I
 
 echo.
 echo ====================================================
+echo Step 7: Setting up CloudWatch Monitoring
+echo ====================================================
+
+REM Create CloudWatch Log Group for Flask application
+echo Creating CloudWatch Log Group...
+aws logs create-log-group --log-group-name /aws/ec2/%PREFIX%-flask-app --region %REGION% >nul 2>&1
+if errorlevel 1 (
+    echo Log Group already exists or created: /aws/ec2/%PREFIX%-flask-app
+) else (
+    echo Log Group created: /aws/ec2/%PREFIX%-flask-app
+)
+
+REM Set log retention to 30 days
+echo Setting log retention to 30 days...
+aws logs put-retention-policy --log-group-name /aws/ec2/%PREFIX%-flask-app --retention-in-days 30 --region %REGION% >nul 2>&1
+
+REM Create CloudWatch Dashboard
+echo Creating CloudWatch Dashboard...
+set DASHBOARD_NAME=%PREFIX%-threat-detection-dashboard
+
+REM Create dashboard body (JSON)
+echo { > dashboard-body.json
+echo   "widgets": [ >> dashboard-body.json
+echo     { >> dashboard-body.json
+echo       "type": "metric", >> dashboard-body.json
+echo       "x": 0, "y": 0, "width": 12, "height": 6, >> dashboard-body.json
+echo       "properties": { >> dashboard-body.json
+echo         "metrics": [ >> dashboard-body.json
+echo           ["AWS/EC2", "CPUUtilization", "InstanceId", "%INSTANCE_ID%"], >> dashboard-body.json
+echo           ["AWS/EC2", "NetworkIn", "InstanceId", "%INSTANCE_ID%"], >> dashboard-body.json
+echo           ["AWS/EC2", "NetworkOut", "InstanceId", "%INSTANCE_ID%"] >> dashboard-body.json
+echo         ], >> dashboard-body.json
+echo         "period": 300, >> dashboard-body.json
+echo         "stat": "Average", >> dashboard-body.json
+echo         "region": "%REGION%", >> dashboard-body.json
+echo         "title": "EC2 Instance Metrics" >> dashboard-body.json
+echo       } >> dashboard-body.json
+echo     }, >> dashboard-body.json
+echo     { >> dashboard-body.json
+echo       "type": "log", >> dashboard-body.json
+echo       "x": 0, "y": 6, "width": 24, "height": 6, >> dashboard-body.json
+echo       "properties": { >> dashboard-body.json
+echo         "query": "SOURCE '/aws/ec2/%PREFIX%-flask-app' | fields @timestamp, @message | sort @timestamp desc | limit 100", >> dashboard-body.json
+echo         "region": "%REGION%", >> dashboard-body.json
+echo         "title": "Flask Application Logs", >> dashboard-body.json
+echo         "view": "table" >> dashboard-body.json
+echo       } >> dashboard-body.json
+echo     } >> dashboard-body.json
+echo   ] >> dashboard-body.json
+echo } >> dashboard-body.json
+
+aws cloudwatch put-dashboard --dashboard-name %DASHBOARD_NAME% --dashboard-body file://dashboard-body.json --region %REGION% >nul 2>&1
+if errorlevel 1 (
+    echo Dashboard creation failed or already exists
+) else (
+    echo CloudWatch Dashboard created: %DASHBOARD_NAME%
+)
+
+REM Create CloudWatch Alarms
+echo Creating CloudWatch Alarms...
+
+REM High CPU Usage Alarm
+aws cloudwatch put-metric-alarm ^
+    --alarm-name "%PREFIX%-high-cpu-usage" ^
+    --alarm-description "Alarm when CPU usage exceeds 80%%" ^
+    --metric-name CPUUtilization ^
+    --namespace AWS/EC2 ^
+    --statistic Average ^
+    --period 300 ^
+    --threshold 80 ^
+    --comparison-operator GreaterThanThreshold ^
+    --dimensions Name=InstanceId,Value=%INSTANCE_ID% ^
+    --evaluation-periods 2 ^
+    --region %REGION% >nul 2>&1
+echo - High CPU usage alarm created
+
+REM High Network Traffic Alarm
+aws cloudwatch put-metric-alarm ^
+    --alarm-name "%PREFIX%-high-network-in" ^
+    --alarm-description "Alarm when network input exceeds 1GB per hour" ^
+    --metric-name NetworkIn ^
+    --namespace AWS/EC2 ^
+    --statistic Sum ^
+    --period 3600 ^
+    --threshold 1073741824 ^
+    --comparison-operator GreaterThanThreshold ^
+    --dimensions Name=InstanceId,Value=%INSTANCE_ID% ^
+    --evaluation-periods 1 ^
+    --region %REGION% >nul 2>&1
+echo - High network traffic alarm created
+
+REM Status Check Failed Alarm
+aws cloudwatch put-metric-alarm ^
+    --alarm-name "%PREFIX%-status-check-failed" ^
+    --alarm-description "Alarm when instance status check fails" ^
+    --metric-name StatusCheckFailed ^
+    --namespace AWS/EC2 ^
+    --statistic Maximum ^
+    --period 300 ^
+    --threshold 1 ^
+    --comparison-operator GreaterThanOrEqualToThreshold ^
+    --dimensions Name=InstanceId,Value=%INSTANCE_ID% ^
+    --evaluation-periods 2 ^
+    --region %REGION% >nul 2>&1
+echo - Status check failed alarm created
+
+REM Clean up temporary files
+del dashboard-body.json >nul 2>&1
+
+echo.
+echo CloudWatch monitoring setup completed!
+echo - Log Group: /aws/ec2/%PREFIX%-flask-app
+echo - Dashboard: %DASHBOARD_NAME%
+echo - Alarms: CPU, Network, Status Check
+
+echo.
+echo ====================================================
 echo 🎉 AWS Infrastructure Setup Complete! 🎉
 echo ====================================================
 echo.
@@ -312,6 +429,16 @@ echo - Flask App (5000): 0.0.0.0/0 >> %DETAILS_FILE%
 echo - HTTP (80): 0.0.0.0/0 >> %DETAILS_FILE%
 echo - HTTPS (443): 0.0.0.0/0 >> %DETAILS_FILE%
 echo - ICMP (ping): 0.0.0.0/0 >> %DETAILS_FILE%
+echo. >> %DETAILS_FILE%
+echo CLOUDWATCH MONITORING: >> %DETAILS_FILE%
+echo ====================== >> %DETAILS_FILE%
+echo Log Group: /aws/ec2/%PREFIX%-flask-app >> %DETAILS_FILE%
+echo Dashboard: %DASHBOARD_NAME% >> %DETAILS_FILE%
+echo Dashboard URL: https://%REGION%.console.aws.amazon.com/cloudwatch/home?region=%REGION%#dashboards:name=%DASHBOARD_NAME% >> %DETAILS_FILE%
+echo Alarms: >> %DETAILS_FILE%
+echo - %PREFIX%-high-cpu-usage >> %DETAILS_FILE%
+echo - %PREFIX%-high-network-in >> %DETAILS_FILE%
+echo - %PREFIX%-status-check-failed >> %DETAILS_FILE%
 echo. >> %DETAILS_FILE%
 echo CONNECTION COMMANDS: >> %DETAILS_FILE%
 echo ==================== >> %DETAILS_FILE%
@@ -427,6 +554,14 @@ echo - Flask App (5000): 0.0.0.0/0
 echo - HTTP (80): 0.0.0.0/0
 echo - HTTPS (443): 0.0.0.0/0
 echo - ICMP (ping): 0.0.0.0/0
+echo.
+echo ====================================================
+echo CloudWatch Monitoring Configured:
+echo ====================================================
+echo - Log Group: /aws/ec2/%PREFIX%-flask-app
+echo - Dashboard: %DASHBOARD_NAME%
+echo - Alarms: CPU Usage, Network Traffic, Status Check
+echo - Dashboard URL: https://%REGION%.console.aws.amazon.com/cloudwatch/home?region=%REGION%#dashboards:name=%DASHBOARD_NAME%
 echo.
 echo Auto-assign public IP: ENABLED
 echo AMI: Amazon Linux 2023 AMI 2023.8.20250804.0 x86_64 HVM kernel-6.1

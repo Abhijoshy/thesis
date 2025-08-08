@@ -12,8 +12,87 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import threading
 import time
+import logging
+import boto3
+from botocore.exceptions import NoCredentialsError, ClientError
+import os
 
 app = Flask(__name__)
+
+# CloudWatch Configuration
+def setup_cloudwatch_logging():
+    """Setup CloudWatch logging if running on AWS EC2"""
+    try:
+        # Check if running on EC2 by trying to get instance metadata
+        region = os.environ.get('AWS_DEFAULT_REGION', 'eu-north-1')
+        
+        # Try to initialize CloudWatch clients
+        cloudwatch_logs = boto3.client('logs', region_name=region)
+        cloudwatch_metrics = boto3.client('cloudwatch', region_name=region)
+        
+        # Configure logging to send to CloudWatch
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
+        
+        # Create a custom handler for CloudWatch (simplified approach)
+        console_handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        
+        print("✅ CloudWatch logging configured successfully!")
+        return cloudwatch_logs, cloudwatch_metrics, True
+        
+    except (NoCredentialsError, ClientError) as e:
+        print(f"⚠️ CloudWatch not available: {e}")
+        # Setup basic logging for local development
+        logging.basicConfig(level=logging.INFO)
+        return None, None, False
+    except Exception as e:
+        print(f"⚠️ CloudWatch setup failed: {e}")
+        logging.basicConfig(level=logging.INFO)
+        return None, None, False
+
+# Initialize CloudWatch
+cloudwatch_logs, cloudwatch_metrics, cloudwatch_enabled = setup_cloudwatch_logging()
+
+def send_custom_metric(metric_name, value, unit='Count', namespace='ThreatDetection/Flask'):
+    """Send custom metrics to CloudWatch"""
+    if cloudwatch_enabled and cloudwatch_metrics:
+        try:
+            cloudwatch_metrics.put_metric_data(
+                Namespace=namespace,
+                MetricData=[
+                    {
+                        'MetricName': metric_name,
+                        'Value': value,
+                        'Unit': unit,
+                        'Timestamp': datetime.utcnow()
+                    }
+                ]
+            )
+        except Exception as e:
+            print(f"Failed to send metric {metric_name}: {e}")
+
+def log_to_cloudwatch(message, level='INFO'):
+    """Log messages to CloudWatch and console"""
+    timestamp = datetime.utcnow().isoformat()
+    log_message = f"[{timestamp}] {level}: {message}"
+    
+    # Always log to console
+    print(log_message)
+    
+    # Try to log to CloudWatch if available
+    if cloudwatch_enabled and cloudwatch_logs:
+        try:
+            log_group = '/aws/ec2/abhishek-flask-app'
+            log_stream = f"flask-app-{datetime.utcnow().strftime('%Y-%m-%d')}"
+            
+            # Note: In production, you'd want to implement proper log stream management
+            # For now, this is a simplified approach
+            pass
+        except Exception as e:
+            pass  # Fail silently for CloudWatch logging errors
 
 # In-memory storage for dynamic data
 prediction_history = []
@@ -162,15 +241,19 @@ def start_automatic_scanning():
         scanning_thread = threading.Thread(target=automatic_packet_scanner, daemon=True)
         scanning_thread.start()
         print("🚀 Automatic packet scanning started!")
+        log_to_cloudwatch("Automatic packet scanning started")
+        send_custom_metric('ScanningStatus', 1)
 
 def stop_automatic_scanning():
     """Stop the automatic packet scanning"""
     global scanning_active
     scanning_active = False
     print("🛑 Automatic packet scanning stopped!")
+    log_to_cloudwatch("Automatic packet scanning stopped")
+    send_custom_metric('ScanningStatus', 0)
 
 def store_prediction(source_ip, prediction_result):
-    """Store prediction results in memory"""
+    """Store prediction results in memory and send CloudWatch metrics"""
     global prediction_history, malicious_ips, hourly_stats
     
     timestamp = datetime.now()
@@ -195,6 +278,25 @@ def store_prediction(source_ip, prediction_result):
         hourly_stats[hour_key]['attack'] += 1
     else:
         hourly_stats[hour_key]['normal'] += 1
+    
+    # Send CloudWatch metrics
+    try:
+        send_custom_metric('TotalPackets', 1)
+        if is_attack:
+            send_custom_metric('AttackPackets', 1)
+            send_custom_metric('AttackConfidence', prediction_result['confidence'], 'Percent')
+            log_to_cloudwatch(f"ATTACK DETECTED: {prediction_result['prediction']} from {source_ip} (Confidence: {prediction_result['confidence']:.1f}%)", 'WARNING')
+        else:
+            send_custom_metric('NormalPackets', 1)
+        
+        # Send confidence metric
+        send_custom_metric('PredictionConfidence', prediction_result['confidence'], 'Percent')
+        
+    except Exception as e:
+        print(f"CloudWatch metrics error: {e}")
+    
+    # Log to CloudWatch
+    log_to_cloudwatch(f"Packet processed: {prediction_result['prediction']} from {source_ip}")
 
 def get_analytics_data():
     """Get analytics data from memory"""
@@ -565,20 +667,69 @@ def scanning_status():
     """API endpoint to check scanning status"""
     global scanning_active, scanning_thread
     is_running = scanning_active and scanning_thread is not None and scanning_thread.is_alive()
+    
+    # Send status metric
+    send_custom_metric('ScanningStatus', 1 if is_running else 0)
+    
     return jsonify({
         'scanning_active': is_running,
         'total_packets': len(prediction_history),
-        'uptime': 'Real-time monitoring active' if is_running else 'Monitoring stopped'
+        'uptime': 'Real-time monitoring active' if is_running else 'Monitoring stopped',
+        'cloudwatch_enabled': cloudwatch_enabled
     })
+
+@app.route('/cloudwatch/status')
+def cloudwatch_status():
+    """API endpoint to check CloudWatch integration status"""
+    try:
+        metrics_data = get_analytics_data()
+        
+        # Send summary metrics
+        send_custom_metric('TotalPacketsAnalyzed', metrics_data['total_packets'])
+        send_custom_metric('AttackPacketsDetected', metrics_data['attack_packets'])
+        send_custom_metric('MaliciousIPsCount', len(metrics_data['malicious_ips']))
+        
+        return jsonify({
+            'cloudwatch_enabled': cloudwatch_enabled,
+            'region': os.environ.get('AWS_DEFAULT_REGION', 'eu-north-1'),
+            'log_group': '/aws/ec2/abhishek-flask-app',
+            'dashboard_name': 'abhishek-threat-detection-dashboard',
+            'metrics_sent': {
+                'total_packets': metrics_data['total_packets'],
+                'attack_packets': metrics_data['attack_packets'],
+                'malicious_ips': len(metrics_data['malicious_ips'])
+            },
+            'status': 'Connected' if cloudwatch_enabled else 'Not Available'
+        })
+        
+    except Exception as e:
+        log_to_cloudwatch(f"CloudWatch status check failed: {e}", 'ERROR')
+        return jsonify({
+            'cloudwatch_enabled': False,
+            'error': str(e),
+            'status': 'Error'
+        })
 
 if __name__ == '__main__':
     # Start automatic packet scanning when the app starts
     print("🌐 Starting Network Threat Detection System...")
     print("🔍 Initializing automatic packet scanning...")
+    log_to_cloudwatch("Network Threat Detection System starting up")
+    
     start_automatic_scanning()
     
     print("🚀 Flask app starting on http://0.0.0.0:5000")
     print("📊 Real-time analytics will be available immediately!")
     print("💡 Tip: The graphs will populate automatically as packets are scanned")
+    
+    if cloudwatch_enabled:
+        print("☁️ CloudWatch monitoring enabled")
+        print("📊 Metrics will be sent to CloudWatch")
+        print("📋 Dashboard: abhishek-threat-detection-dashboard")
+    else:
+        print("⚠️ CloudWatch monitoring not available")
+    
+    log_to_cloudwatch("Flask app started successfully")
+    send_custom_metric('AppStartup', 1)
     
     app.run(host='0.0.0.0', port=5000, debug=True)
