@@ -832,6 +832,50 @@ def cloudwatch_status():
             'status': 'Error'
         })
 
+@app.route('/api/dashboard-stats')
+def dashboard_stats():
+    """API endpoint for main dashboard statistics"""
+    try:
+        # Get current analytics data
+        analytics_data = get_analytics_data()
+        
+        # Calculate basic stats
+        total_packets = analytics_data['total_packets']
+        normal_packets = analytics_data['normal_packets']
+        attack_packets = analytics_data['attack_packets']
+        
+        # Calculate attack percentage
+        attack_percentage = 0.0
+        if total_packets > 0:
+            attack_percentage = round((attack_packets / total_packets) * 100, 2)
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total_packets': total_packets,
+                'normal_packets': normal_packets,
+                'attack_packets': attack_packets,
+                'attack_percentage': attack_percentage,
+                'model_accuracy': 97.4  # Static accuracy from the best model
+            },
+            'scanning_active': scanning_active,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        log_to_cloudwatch(f"Dashboard stats error: {e}", 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'stats': {
+                'total_packets': 0,
+                'normal_packets': 0,
+                'attack_packets': 0,
+                'attack_percentage': 0.0,
+                'model_accuracy': 97.4
+            }
+        })
+
 if __name__ == '__main__':
     # Start automatic packet scanning when the app starts
     print("🌐 Starting Network Threat Detection System...")

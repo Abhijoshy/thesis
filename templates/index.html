@@ -639,13 +639,14 @@
     <script>
         // Initialize the dashboard with real-time features
         document.addEventListener('DOMContentLoaded', function() {
+            updateDashboardStats();  // Load initial dashboard stats
             loadAnalytics();
             loadModelInfo();
             checkScanningStatus();
             startAutoRefresh();
             
             console.log('🚀 Real-time Network Threat Detection System initialized');
-            console.log('📊 Analytics will auto-refresh every 10 seconds');
+            console.log('📊 Analytics will auto-refresh every 5 seconds');
         });
 
         // Sample packet data for testing
@@ -933,9 +934,39 @@
         // Auto-refresh analytics every 10 seconds
         function startAutoRefresh() {
             setInterval(() => {
+                updateDashboardStats();
                 loadAnalytics();
                 checkScanningStatus();
-            }, 10000); // Refresh every 10 seconds
+            }, 5000); // Refresh every 5 seconds for more responsiveness
+        }
+
+        // Update main dashboard statistics
+        function updateDashboardStats() {
+            fetch('/api/dashboard-stats')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update dashboard statistics
+                    document.getElementById('totalPackets').textContent = data.stats.total_packets;
+                    document.getElementById('normalPackets').textContent = data.stats.normal_packets;
+                    document.getElementById('attackPackets').textContent = data.stats.attack_packets;
+                    
+                    // Update status message based on activity
+                    const statusMessage = document.querySelector('.alert-custom span');
+                    if (data.stats.total_packets > 0) {
+                        statusMessage.innerHTML = `🔍 Automatically scanning network packets in real-time... (${data.stats.total_packets} packets analyzed)`;
+                    } else {
+                        statusMessage.innerHTML = '🔍 Automatically scanning network packets in real-time...';
+                    }
+                    
+                    console.log(`Dashboard updated: ${data.stats.total_packets} total, ${data.stats.normal_packets} normal, ${data.stats.attack_packets} attacks`);
+                } else {
+                    console.error('Failed to update dashboard stats:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating dashboard stats:', error);
+            });
         }
 
 
