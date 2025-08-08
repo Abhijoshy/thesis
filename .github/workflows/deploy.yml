@@ -70,6 +70,11 @@ jobs:
         echo "Uploading saved_models folder..."
         scp $SSH_OPTS -r saved_models/ ec2-user@$HOST:/home/ec2-user/abhishek-thesis/
         
+        # Install Python and pip if not available
+        echo "Setting up Python environment..."
+        ssh $SSH_OPTS ec2-user@$HOST "sudo yum update -y"
+        ssh $SSH_OPTS ec2-user@$HOST "sudo yum install -y python3 python3-pip"
+        
         # Install dependencies
         echo "Installing Python dependencies..."
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && python3 -m pip install --user -r requirements.txt"
