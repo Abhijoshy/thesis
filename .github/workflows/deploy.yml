@@ -52,7 +52,9 @@ jobs:
         
         # Kill any existing Flask processes
         echo "Stopping any existing Flask processes..."
-        ssh $SSH_OPTS ec2-user@$HOST "pkill -f 'python.*app.py' || echo 'No existing processes found'"
+        ssh $SSH_OPTS ec2-user@$HOST "pkill -f 'python.*app.py' 2>/dev/null || true"
+        ssh $SSH_OPTS ec2-user@$HOST "pkill -f 'start_app.sh' 2>/dev/null || true"
+        echo "Process cleanup completed"
         
         # Create directory
         echo "Creating application directory..."
@@ -80,21 +82,27 @@ jobs:
         
         # Create startup script and start Flask app
         echo "Creating startup script..."
-        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo '#!/bin/bash' > start_app.sh"
-        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'cd /home/ec2-user/abhishek-thesis' >> start_app.sh"
-        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'python3 app.py > flask_app.log 2>&1' >> start_app.sh"
-        ssh $SSH_OPTS ec2-user@$HOST "chmod +x /home/ec2-user/abhishek-thesis/start_app.sh"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && cat > start_flask.sh << 'EOF'
+#!/bin/bash
+cd /home/ec2-user/abhishek-thesis
+export PYTHONPATH=/home/ec2-user/.local/lib/python3.9/site-packages:$PYTHONPATH
+nohup python3 app.py > flask_app.log 2>&1 &
+echo \$! > flask_app.pid
+EOF"
+        ssh $SSH_OPTS ec2-user@$HOST "chmod +x /home/ec2-user/abhishek-thesis/start_flask.sh"
         
         echo "Starting Flask application..."
-        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && nohup ./start_app.sh &"
+        ssh $SSH_OPTS ec2-user@$HOST "/home/ec2-user/abhishek-thesis/start_flask.sh"
         
         # Give it a moment to start
         echo "Waiting for app to start..."
-        sleep 10
+        sleep 15
         
         # Check if it's running (separate connection)
         echo "Checking if Flask app started..."
-        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && ps aux | grep 'python.*app.py' | grep -v grep || echo 'App not found in processes'"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && if [ -f flask_app.pid ]; then echo 'PID file found:'; cat flask_app.pid; fi"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && ps aux | grep '[p]ython.*app.py' || echo 'Flask process not found in ps output'"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && netstat -tlnp 2>/dev/null | grep ':5000' || echo 'Port 5000 not listening'"
         
         # Test the app
         ssh $SSH_OPTS ec2-user@$HOST "curl -s http://localhost:5000 && echo 'App is responding!'"
