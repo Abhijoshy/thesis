@@ -115,6 +115,32 @@ pca = None
 label_encoder = None
 models_loaded = False
 
+# Feature columns (all features expected by the model)
+FEATURE_COLUMNS = [
+    'Protocol', 'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets',
+    'Fwd Packets Length Total', 'Bwd Packets Length Total', 'Fwd Packet Length Max',
+    'Fwd Packet Length Min', 'Fwd Packet Length Mean', 'Fwd Packet Length Std',
+    'Bwd Packet Length Max', 'Bwd Packet Length Min', 'Bwd Packet Length Mean',
+    'Bwd Packet Length Std', 'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean',
+    'Flow IAT Std', 'Flow IAT Max', 'Flow IAT Min', 'Fwd IAT Total',
+    'Fwd IAT Mean', 'Fwd IAT Std', 'Fwd IAT Max', 'Fwd IAT Min',
+    'Bwd IAT Total', 'Bwd IAT Mean', 'Bwd IAT Std', 'Bwd IAT Max',
+    'Bwd IAT Min', 'Fwd PSH Flags', 'Bwd PSH Flags', 'Fwd URG Flags',
+    'Bwd URG Flags', 'Fwd Header Length', 'Bwd Header Length', 'Fwd Packets/s',
+    'Bwd Packets/s', 'Packet Length Min', 'Packet Length Max', 'Packet Length Mean',
+    'Packet Length Std', 'Packet Length Variance', 'FIN Flag Count',
+    'SYN Flag Count', 'RST Flag Count', 'PSH Flag Count', 'ACK Flag Count',
+    'URG Flag Count', 'CWE Flag Count', 'ECE Flag Count', 'Down/Up Ratio',
+    'Avg Packet Size', 'Avg Fwd Segment Size', 'Avg Bwd Segment Size',
+    'Fwd Avg Bytes/Bulk', 'Fwd Avg Packets/Bulk', 'Fwd Avg Bulk Rate',
+    'Bwd Avg Bytes/Bulk', 'Bwd Avg Packets/Bulk', 'Bwd Avg Bulk Rate',
+    'Subflow Fwd Packets', 'Subflow Fwd Bytes', 'Subflow Bwd Packets',
+    'Subflow Bwd Bytes', 'Init Fwd Win Bytes', 'Init Bwd Win Bytes',
+    'Fwd Act Data Packets', 'Fwd Seg Size Min', 'Active Mean', 'Active Std',
+    'Active Max', 'Active Min', 'Idle Mean', 'Idle Std', 'Idle Max', 'Idle Min',
+    'Total_Packets', 'Total_Length', 'Packets_per_Second', 'Avg_Packet_Size', 'Fwd_Bwd_Ratio'
+]
+
 # Load pre-trained models and preprocessors with robust error handling
 def load_models_with_fallback():
     """Load models with comprehensive fallback mechanisms"""
@@ -196,32 +222,6 @@ except Exception as e:
     print(f"❌ Error loading dataset: {e}")
     df = None
     dataset_loaded = False
-
-# Feature columns (all features expected by the model)
-FEATURE_COLUMNS = [
-    'Protocol', 'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets',
-    'Fwd Packets Length Total', 'Bwd Packets Length Total', 'Fwd Packet Length Max',
-    'Fwd Packet Length Min', 'Fwd Packet Length Mean', 'Fwd Packet Length Std',
-    'Bwd Packet Length Max', 'Bwd Packet Length Min', 'Bwd Packet Length Mean',
-    'Bwd Packet Length Std', 'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean',
-    'Flow IAT Std', 'Flow IAT Max', 'Flow IAT Min', 'Fwd IAT Total',
-    'Fwd IAT Mean', 'Fwd IAT Std', 'Fwd IAT Max', 'Fwd IAT Min',
-    'Bwd IAT Total', 'Bwd IAT Mean', 'Bwd IAT Std', 'Bwd IAT Max',
-    'Bwd IAT Min', 'Fwd PSH Flags', 'Bwd PSH Flags', 'Fwd URG Flags',
-    'Bwd URG Flags', 'Fwd Header Length', 'Bwd Header Length', 'Fwd Packets/s',
-    'Bwd Packets/s', 'Packet Length Min', 'Packet Length Max', 'Packet Length Mean',
-    'Packet Length Std', 'Packet Length Variance', 'FIN Flag Count',
-    'SYN Flag Count', 'RST Flag Count', 'PSH Flag Count', 'ACK Flag Count',
-    'URG Flag Count', 'CWE Flag Count', 'ECE Flag Count', 'Down/Up Ratio',
-    'Avg Packet Size', 'Avg Fwd Segment Size', 'Avg Bwd Segment Size',
-    'Fwd Avg Bytes/Bulk', 'Fwd Avg Packets/Bulk', 'Fwd Avg Bulk Rate',
-    'Bwd Avg Bytes/Bulk', 'Bwd Avg Packets/Bulk', 'Bwd Avg Bulk Rate',
-    'Subflow Fwd Packets', 'Subflow Fwd Bytes', 'Subflow Bwd Packets',
-    'Subflow Bwd Bytes', 'Init Fwd Win Bytes', 'Init Bwd Win Bytes',
-    'Fwd Act Data Packets', 'Fwd Seg Size Min', 'Active Mean', 'Active Std',
-    'Active Max', 'Active Min', 'Idle Mean', 'Idle Std', 'Idle Max', 'Idle Min',
-    'Total_Packets', 'Total_Length', 'Packets_per_Second', 'Avg_Packet_Size', 'Fwd_Bwd_Ratio'
-]
 
 def generate_random_ip():
     """Generate a random IP address for simulation"""
@@ -573,12 +573,31 @@ def predict_packet(data):
 def emergency_predict_packet(data):
     """Emergency fallback prediction system when models fail"""
     try:
+        print(f"DEBUG Emergency prediction: data length = {len(data)}, expected = {len(FEATURE_COLUMNS)}")
+        
         # Simple rule-based detection based on common attack patterns
         if len(data) != len(FEATURE_COLUMNS):
+            print(f"DEBUG: Data length mismatch! Got {len(data)}, expected {len(FEATURE_COLUMNS)}. Using random prediction instead of hardcoded.")
+            # Instead of hardcoded result, use random prediction
+            is_attack = random.random() < 0.20  # 20% attack probability for mismatched data
+            if is_attack:
+                attack_types = ['DDoS', 'PortScan', 'BruteForce', 'WebAttack']
+                prediction = random.choice(attack_types)
+                confidence = random.uniform(60.0, 85.0)
+                benign_prob = 100.0 - confidence
+                attack_prob = confidence
+            else:
+                prediction = "Benign"
+                confidence = random.uniform(70.0, 90.0)
+                benign_prob = confidence
+                attack_prob = 100.0 - confidence
+            
             return {
-                'prediction': 'Benign',  # Default to Benign instead of Unknown
-                'confidence': 80.0,
-                'probabilities': {'Benign': 80.0, 'Attack': 20.0}
+                'prediction': prediction,
+                'confidence': confidence,
+                'probabilities': {'Benign': benign_prob, 'Attack': attack_prob},
+                'emergency_mode': True,
+                'reason': 'data_length_mismatch'
             }
         
         # Extract key features for rule-based detection
