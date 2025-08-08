@@ -33,15 +33,20 @@ try:
     label_encoder = joblib.load('saved_models/label_encoder.pkl')
     
     print("✅ All models loaded successfully!")
+    models_loaded = True
 except Exception as e:
     print(f"❌ Error loading models: {e}")
+    models_loaded = False
 
 # Load the dataset for analysis
 try:
     df = pd.read_csv('dataset/balanced_dataset.csv')
     print(f"✅ Dataset loaded: {df.shape[0]} samples")
+    dataset_loaded = True
 except Exception as e:
     print(f"❌ Error loading dataset: {e}")
+    df = None
+    dataset_loaded = False
 
 # Feature columns (all features expected by the model)
 FEATURE_COLUMNS = [
@@ -76,7 +81,7 @@ def generate_random_ip():
 def generate_realistic_packet_data():
     """Generate realistic packet data for automatic scanning simulation"""
     # Use actual data from the dataset to create realistic packets
-    if len(df) > 0:
+    if dataset_loaded and df is not None and len(df) > 0:
         # Select a random row from the dataset
         sample_row = df.sample(n=1).iloc[0]
         
@@ -121,8 +126,9 @@ def generate_realistic_packet_data():
         
         return packet_data
     else:
-        # Fallback to completely random data
+        # Fallback to completely random data when dataset is not available
         packet_data = [random.uniform(0, 100) for _ in range(len(FEATURE_COLUMNS))]
+        return packet_data
         return packet_data
 
 def automatic_packet_scanner():
@@ -239,6 +245,14 @@ def preprocess_input(data):
 def predict_packet(data):
     """Predict if packet is normal or attack"""
     try:
+        # Check if models are loaded
+        if not models_loaded:
+            return {
+                'prediction': 'Unknown',
+                'confidence': 0.0,
+                'probabilities': {'Benign': 50.0, 'Attack': 50.0}
+            }
+        
         # Preprocess the data
         processed_data = preprocess_input(data)
         if processed_data is None:

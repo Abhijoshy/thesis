@@ -50,8 +50,9 @@ jobs:
         echo "Testing SSH connection..."
         ssh $SSH_OPTS ec2-user@$HOST "whoami && pwd"
         
-        # Skip process killing for first deployment
-        echo "Skipping process killing for initial deployment..."
+        # Kill any existing Flask processes
+        echo "Stopping any existing Flask processes..."
+        ssh $SSH_OPTS ec2-user@$HOST "pkill -f 'python.*app.py' || echo 'No existing processes found'"
         
         # Create directory
         echo "Creating application directory..."
@@ -70,14 +71,12 @@ jobs:
         echo "Uploading saved_models folder..."
         scp $SSH_OPTS -r saved_models/ ec2-user@$HOST:/home/ec2-user/abhishek-thesis/
         
-        # Install Python and pip if not available
-        echo "Setting up Python environment..."
-        ssh $SSH_OPTS ec2-user@$HOST "sudo yum update -y"
-        ssh $SSH_OPTS ec2-user@$HOST "sudo yum install -y python3 python3-pip"
+        echo "Uploading dataset folder..."
+        scp $SSH_OPTS -r dataset/ ec2-user@$HOST:/home/ec2-user/abhishek-thesis/
         
-        # Install dependencies
-        echo "Installing Python dependencies..."
-        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && python3 -m pip install --user -r requirements.txt"
+        # Update dependencies if needed
+        echo "Updating Python dependencies..."
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && python3 -m pip install --user --upgrade numpy pandas scikit-learn"
         
         # Create startup script and start Flask app
         echo "Creating startup script..."

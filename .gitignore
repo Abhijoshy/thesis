@@ -34,10 +34,12 @@ pr.txt
 test_app.py
 topic.txt
 
-# Dataset files (large files)
+# Dataset files (large files) - exclude all except balanced_dataset.csv
 dataset/
+!dataset/balanced_dataset.csv
 datasets/
 *.csv
+!dataset/balanced_dataset.csv
 *.parquet
 *.h5
 *.hdf5
