@@ -35,21 +35,35 @@ jobs:
         USER: ec2-user
         APP_DIR: /home/ec2-user/abhishek-thesis
       run: |
-        # Create SSH key file
+        # Create SSH key file with proper format
         echo "$PRIVATE_KEY" > private_key.pem
         chmod 600 private_key.pem
         
+        # Verify SSH key format
+        if ! ssh-keygen -l -f private_key.pem > /dev/null 2>&1; then
+          echo "ERROR: SSH key format is invalid"
+          exit 1
+        fi
+        
         # Create .ssh directory and known_hosts file
         mkdir -p ~/.ssh
-        touch ~/.ssh/known_hosts
         chmod 700 ~/.ssh
-        chmod 600 ~/.ssh/known_hosts
         
-        # Add EC2 host to known hosts
-        ssh-keyscan -H $HOST >> ~/.ssh/known_hosts 2>/dev/null || true
+        # SSH connection options with increased timeout and retries
+        SSH_OPTIONS="-i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30 -o ConnectionAttempts=3"
+        SCP_OPTIONS="-i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30"
         
-        # Alternative: Use StrictHostKeyChecking=no (less secure but more reliable)
-        SSH_OPTIONS="-i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+        # Test SSH connection first
+        echo "Testing SSH connection to $HOST..."
+        if ! ssh $SSH_OPTIONS $USER@$HOST "echo 'SSH connection successful'"; then
+          echo "ERROR: Cannot establish SSH connection to $HOST"
+          echo "Please check:"
+          echo "1. EC2 instance is running"
+          echo "2. Security group allows SSH (port 22)"
+          echo "3. SSH key is correct"
+          echo "4. Host IP is correct: $HOST"
+          exit 1
+        fi
         
         # Stop existing Flask app if running
         echo "Stopping existing Flask application..."
@@ -72,12 +86,12 @@ jobs:
         
         # Upload new code (exclude dataset to avoid large file transfer)
         echo "Uploading new application code..."
-        scp $SSH_OPTIONS -r app.py requirements.txt templates/ saved_models/ $USER@$HOST:$APP_DIR/
+        scp $SCP_OPTIONS -r app.py requirements.txt templates/ saved_models/ $USER@$HOST:$APP_DIR/
         
         # Install Python and pip if not available
         echo "Setting up Python environment..."
         ssh $SSH_OPTIONS $USER@$HOST "sudo yum update -y || true"
-        ssh $SSH_OPTIONS $USER@$HOST "sudo yum install -y python3 python3-pip || true"
+        ssh $SSH_OPTIONS $USER@$HOST "sudo yum install -y python3 python3-pip curl || true"
         
         # Install Python dependencies
         echo "Installing Python dependencies..."
@@ -89,12 +103,16 @@ jobs:
         
         # Wait a moment and check if app started
         echo "Checking application status..."
-        sleep 10
+        sleep 15
         ssh $SSH_OPTIONS $USER@$HOST "cd $APP_DIR && ps aux | grep 'python.*app.py' | grep -v grep || echo 'App may not be running'"
         
         # Test if app is responding
         echo "Testing application..."
         ssh $SSH_OPTIONS $USER@$HOST "curl -s http://localhost:5000 > /dev/null && echo 'Flask app is responding' || echo 'Flask app may not be responding'"
+        
+        # Get application status
+        echo "Final status check..."
+        ssh $SSH_OPTIONS $USER@$HOST "cd $APP_DIR && if ps aux | grep 'python.*app.py' | grep -v grep > /dev/null; then echo 'SUCCESS: Flask app is running'; else echo 'WARNING: Flask app may not be running'; fi"
         
         # Cleanup
         rm -f private_key.pem
