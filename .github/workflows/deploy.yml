@@ -50,9 +50,8 @@ jobs:
         echo "Testing SSH connection..."
         ssh $SSH_OPTS ec2-user@$HOST "whoami && pwd"
         
-        # Stop any existing Flask processes
-        echo "Stopping existing Flask application..."
-        ssh $SSH_OPTS ec2-user@$HOST "pkill -f 'python.*app.py' || echo 'No existing Flask process'"
+        # Skip process killing for first deployment
+        echo "Skipping process killing for initial deployment..."
         
         # Create directory
         echo "Creating application directory..."
