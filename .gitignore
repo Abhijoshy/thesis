@@ -40,6 +40,7 @@ dataset/*
 datasets/
 *.csv
 !dataset/balanced_dataset.csv
+!saved_models/model_comparison.csv
 *.parquet
 *.h5
 *.hdf5
