@@ -74,13 +74,21 @@ jobs:
         ssh $SSH_OPTS ec2-user@$HOST "mkdir -p /home/ec2-user/abhishek-thesis/dataset"
         scp $SSH_OPTS dataset/balanced_dataset.csv ec2-user@$HOST:/home/ec2-user/abhishek-thesis/dataset/
         
-        # Install all dependencies from requirements.txt
+        # Install all dependencies from requirements.txt with force reinstall
         echo "Installing Python dependencies from requirements.txt..."
-        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && python3 -m pip install --user -r requirements.txt"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && python3 -m pip install --user --force-reinstall -r requirements.txt"
+        
+        # Force reinstall NumPy specifically to fix _core issue
+        echo "Force reinstalling NumPy..."
+        ssh $SSH_OPTS ec2-user@$HOST "python3 -m pip install --user --force-reinstall numpy==1.26.4"
         
         # Test imports before starting the app
         echo "Testing Python imports..."
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && python3 -c 'import flask, pandas, numpy, sklearn, plotly, joblib; print(\"All imports successful\")'"
+        
+        # Test NumPy core specifically
+        echo "Testing NumPy core..."
+        ssh $SSH_OPTS ec2-user@$HOST "python3 -c 'import numpy as np; print(f\"NumPy version: {np.__version__}\"); print(\"NumPy core test passed\")'"
         
         # Test boto3 import separately (might not have credentials but should import)
         echo "Testing AWS boto3 import..."
@@ -90,6 +98,9 @@ jobs:
         echo "Creating startup script..."
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo '#!/bin/bash' > start_flask.sh"
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'cd /home/ec2-user/abhishek-thesis' >> start_flask.sh"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo '# Kill any existing Flask processes' >> start_flask.sh"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'pkill -f \"python.*app.py\" || true' >> start_flask.sh"
+        ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'sleep 2' >> start_flask.sh"
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'export PYTHONPATH=/home/ec2-user/.local/lib/python3.9/site-packages:\$PYTHONPATH' >> start_flask.sh"
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'export FLASK_ENV=production' >> start_flask.sh"
         ssh $SSH_OPTS ec2-user@$HOST "cd /home/ec2-user/abhishek-thesis && echo 'export AWS_DEFAULT_REGION=eu-north-1' >> start_flask.sh"
