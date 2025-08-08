@@ -50,11 +50,8 @@ jobs:
         echo "Testing SSH connection..."
         ssh $SSH_OPTS ec2-user@$HOST "whoami && pwd"
         
-        # Kill any existing Flask processes
-        echo "Stopping any existing Flask processes..."
-        ssh $SSH_OPTS ec2-user@$HOST "pkill -f 'python.*app.py' 2>/dev/null || true"
-        ssh $SSH_OPTS ec2-user@$HOST "pkill -f 'start_app.sh' 2>/dev/null || true"
-        echo "Process cleanup completed"
+        # Note: Skipping process cleanup to avoid SSH issues
+        echo "Note: Skipping existing process cleanup"
         
         # Create directory
         echo "Creating application directory..."
