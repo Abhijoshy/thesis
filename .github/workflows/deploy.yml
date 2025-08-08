@@ -55,7 +55,7 @@ jobs:
         
         # Test SSH connection first
         echo "Testing SSH connection to $HOST..."
-        if ! ssh $SSH_OPTIONS $USER@$HOST "echo 'SSH connection successful'"; then
+        if ! ssh $SSH_OPTIONS ec2-user@$HOST "echo 'SSH connection successful'"; then
           echo "ERROR: Cannot establish SSH connection to $HOST"
           echo "Please check:"
           echo "1. EC2 instance is running"
@@ -67,52 +67,52 @@ jobs:
         
         # Stop existing Flask app if running
         echo "Stopping existing Flask application..."
-        ssh $SSH_OPTIONS $USER@$HOST "pkill -f 'python.*app.py' || true"
-        ssh $SSH_OPTIONS $USER@$HOST "pkill -f 'flask' || true"
+        ssh $SSH_OPTIONS ec2-user@$HOST "pkill -f 'python.*app.py' || true"
+        ssh $SSH_OPTIONS ec2-user@$HOST "pkill -f 'flask' || true"
         
         # Create application directory if it doesn't exist
         echo "Creating application directory..."
-        ssh $SSH_OPTIONS $USER@$HOST "mkdir -p $APP_DIR"
+        ssh $SSH_OPTIONS ec2-user@$HOST "mkdir -p $APP_DIR"
         
         # Backup old code (optional)
         echo "Backing up old code..."
-        ssh $SSH_OPTIONS $USER@$HOST "if [ -d $APP_DIR/backup ]; then rm -rf $APP_DIR/backup; fi"
-        ssh $SSH_OPTIONS $USER@$HOST "if [ -f $APP_DIR/app.py ]; then mkdir -p $APP_DIR/backup && cp -r $APP_DIR/* $APP_DIR/backup/ || true; fi"
+        ssh $SSH_OPTIONS ec2-user@$HOST "if [ -d $APP_DIR/backup ]; then rm -rf $APP_DIR/backup; fi"
+        ssh $SSH_OPTIONS ec2-user@$HOST "if [ -f $APP_DIR/app.py ]; then mkdir -p $APP_DIR/backup && cp -r $APP_DIR/* $APP_DIR/backup/ || true; fi"
         
         # Remove old application files (except backup)
         echo "Removing old application files..."
-        ssh $SSH_OPTIONS $USER@$HOST "cd $APP_DIR && find . -maxdepth 1 -type f -not -name 'backup' -delete || true"
-        ssh $SSH_OPTIONS $USER@$HOST "cd $APP_DIR && find . -maxdepth 1 -type d -not -name '.' -not -name 'backup' -exec rm -rf {} + || true"
+        ssh $SSH_OPTIONS ec2-user@$HOST "cd $APP_DIR && find . -maxdepth 1 -type f -not -name 'backup' -delete || true"
+        ssh $SSH_OPTIONS ec2-user@$HOST "cd $APP_DIR && find . -maxdepth 1 -type d -not -name '.' -not -name 'backup' -exec rm -rf {} + || true"
         
         # Upload new code (exclude dataset to avoid large file transfer)
         echo "Uploading new application code..."
-        scp $SCP_OPTIONS -r app.py requirements.txt templates/ saved_models/ $USER@$HOST:$APP_DIR/
+        scp $SCP_OPTIONS -r app.py requirements.txt templates/ saved_models/ ec2-user@$HOST:$APP_DIR/
         
         # Install Python and pip if not available
         echo "Setting up Python environment..."
-        ssh $SSH_OPTIONS $USER@$HOST "sudo yum update -y || true"
-        ssh $SSH_OPTIONS $USER@$HOST "sudo yum install -y python3 python3-pip curl || true"
+        ssh $SSH_OPTIONS ec2-user@$HOST "sudo yum update -y || true"
+        ssh $SSH_OPTIONS ec2-user@$HOST "sudo yum install -y python3 python3-pip curl || true"
         
         # Install Python dependencies
         echo "Installing Python dependencies..."
-        ssh $SSH_OPTIONS $USER@$HOST "cd $APP_DIR && python3 -m pip install --user -r requirements.txt"
+        ssh $SSH_OPTIONS ec2-user@$HOST "cd $APP_DIR && python3 -m pip install --user -r requirements.txt"
         
         # Start Flask application in background
         echo "Starting Flask application..."
-        ssh $SSH_OPTIONS $USER@$HOST "cd $APP_DIR && nohup python3 app.py > flask_app.log 2>&1 &"
+        ssh $SSH_OPTIONS ec2-user@$HOST "cd $APP_DIR && nohup python3 app.py > flask_app.log 2>&1 &"
         
         # Wait a moment and check if app started
         echo "Checking application status..."
         sleep 15
-        ssh $SSH_OPTIONS $USER@$HOST "cd $APP_DIR && ps aux | grep 'python.*app.py' | grep -v grep || echo 'App may not be running'"
+        ssh $SSH_OPTIONS ec2-user@$HOST "cd $APP_DIR && ps aux | grep 'python.*app.py' | grep -v grep || echo 'App may not be running'"
         
         # Test if app is responding
         echo "Testing application..."
-        ssh $SSH_OPTIONS $USER@$HOST "curl -s http://localhost:5000 > /dev/null && echo 'Flask app is responding' || echo 'Flask app may not be responding'"
+        ssh $SSH_OPTIONS ec2-user@$HOST "curl -s http://localhost:5000 > /dev/null && echo 'Flask app is responding' || echo 'Flask app may not be responding'"
         
         # Get application status
         echo "Final status check..."
-        ssh $SSH_OPTIONS $USER@$HOST "cd $APP_DIR && if ps aux | grep 'python.*app.py' | grep -v grep > /dev/null; then echo 'SUCCESS: Flask app is running'; else echo 'WARNING: Flask app may not be running'; fi"
+        ssh $SSH_OPTIONS ec2-user@$HOST "cd $APP_DIR && if ps aux | grep 'python.*app.py' | grep -v grep > /dev/null; then echo 'SUCCESS: Flask app is running'; else echo 'WARNING: Flask app may not be running'; fi"
         
         # Cleanup
         rm -f private_key.pem
